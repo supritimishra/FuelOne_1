@@ -1,0 +1,41 @@
+
+const { Client } = require('pg');
+const fs = require('fs');
+const path = require('path');
+
+// Load env
+const envPath = path.resolve(__dirname, '../.local.env');
+const envContent = fs.readFileSync(envPath, 'utf8');
+const env = {};
+envContent.split('\n').forEach(line => {
+    const [k, v] = line.split('=');
+    if (k && v) env[k.trim()] = v.trim().replace(/"/g, '');
+});
+
+async function checkPrereqs() {
+    // Target Jay's DB
+    const tenantDbName = 'petropal_tenant_d9a422c63387';
+    const tenantUrl = env.DATABASE_URL.replace(/\/([^/]+)$/, `/${tenantDbName}`);
+    const client = new Client({ connectionString: tenantUrl });
+    await client.connect();
+
+    try {
+        console.log(`Checking prerequisites in: ${tenantDbName}`);
+
+        const products = await client.query('SELECT count(*) FROM fuel_products');
+        console.log(`Fuel Products: ${products.rows[0].count}`);
+
+        const nozzles = await client.query('SELECT count(*) FROM nozzles');
+        console.log(`Nozzles: ${nozzles.rows[0].count}`);
+
+        const tanks = await client.query('SELECT count(*) FROM tanks');
+        console.log(`Tanks: ${tanks.rows[0].count}`);
+
+    } catch (e) {
+        console.error(e);
+    } finally {
+        await client.end();
+    }
+}
+
+checkPrereqs();

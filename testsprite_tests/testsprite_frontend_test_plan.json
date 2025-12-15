@@ -1,0 +1,552 @@
+[
+  {
+    "id": "TC001",
+    "title": "User Authentication Success with Valid Credentials",
+    "description": "Verify that a user can successfully log in using valid email/username and password, receiving a JWT token stored in httpOnly cookies.",
+    "category": "functional",
+    "priority": "High",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Navigate to the login page"
+      },
+      {
+        "type": "action",
+        "description": "Input valid email/username and password"
+      },
+      {
+        "type": "action",
+        "description": "Submit login form"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify login response status is success (200 OK)"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify JWT token is set in httpOnly cookie"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify user is redirected to dashboard"
+      }
+    ]
+  },
+  {
+    "id": "TC002",
+    "title": "User Authentication Failure with Invalid Credentials",
+    "description": "Verify that login attempt fails when invalid credentials are provided, and an appropriate error message is shown.",
+    "category": "error handling",
+    "priority": "High",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Navigate to the login page"
+      },
+      {
+        "type": "action",
+        "description": "Input invalid email/username or password"
+      },
+      {
+        "type": "action",
+        "description": "Submit login form"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify login response status is 401 Unauthorized"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify error message indicates invalid credentials"
+      }
+    ]
+  },
+  {
+    "id": "TC003",
+    "title": "Role-based Access Control Enforcement",
+    "description": "Ensure that users can only access routes and perform actions authorized by their roles.",
+    "category": "security",
+    "priority": "High",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Log in as a user with restricted role"
+      },
+      {
+        "type": "action",
+        "description": "Attempt to access admin-only routes and features"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify access is denied with 403 Forbidden or proper redirect"
+      },
+      {
+        "type": "action",
+        "description": "Attempt to perform restricted actions (e.g. deleting vendors)"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify actions are blocked and error messages shown"
+      }
+    ]
+  },
+  {
+    "id": "TC004",
+    "title": "Dashboard Displays Real-Time Metrics Accurately",
+    "description": "Verify the dashboard displays correct aggregated data for sales, purchases, credit status, and recent transactions in real-time.",
+    "category": "functional",
+    "priority": "High",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Log in and navigate to dashboard page"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify sales totals match expected values from recent transactions"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify purchases totals and statuses are correct"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify credit status accurately reflects current customer balances"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify recent transactions list matches recent entries in database"
+      }
+    ]
+  },
+  {
+    "id": "TC005",
+    "title": "Master Data Management CRUD Operations for Fuel Products",
+    "description": "Verify create, read, update, and delete operations on fuel product records function correctly and database updates accordingly.",
+    "category": "functional",
+    "priority": "High",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Navigate to Fuel Products management page"
+      },
+      {
+        "type": "action",
+        "description": "Create a new fuel product with valid input data"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify new product appears in product list and database"
+      },
+      {
+        "type": "action",
+        "description": "Edit an existing fuel product to modify details"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify updates persist in UI and database"
+      },
+      {
+        "type": "action",
+        "description": "Delete a fuel product"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify product is removed from UI and database, and no orphan references exist"
+      }
+    ]
+  },
+  {
+    "id": "TC006",
+    "title": "Form Validation on Sales Modules Using Zod Schemas",
+    "description": "Ensure frontend forms for guest sales, credit sales, and other sales modules validate inputs correctly and show errors for invalid entries before submission.",
+    "category": "functional",
+    "priority": "High",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Navigate to guest sales page"
+      },
+      {
+        "type": "action",
+        "description": "Enter invalid data in required fields (e.g., empty quantity, invalid price)"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify instant validation errors are shown and submission prevented"
+      },
+      {
+        "type": "action",
+        "description": "Enter valid data and submit sales form"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify submission succeeds and data properly recorded"
+      }
+    ]
+  },
+  {
+    "id": "TC007",
+    "title": "Credit Sales Enforce Customer Limit and Track Balances",
+    "description": "Validate that credit sales cannot exceed customer credit limits and that balances update correctly after transactions.",
+    "category": "functional",
+    "priority": "High",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Select a credit customer with known credit limit and balance"
+      },
+      {
+        "type": "action",
+        "description": "Attempt to enter a credit sale exceeding the customer's remaining credit limit"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify validation error shown and sale not accepted"
+      },
+      {
+        "type": "action",
+        "description": "Enter a credit sale within allowable limit"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify sale accepted and customer's credit balance updated accordingly"
+      }
+    ]
+  },
+  {
+    "id": "TC008",
+    "title": "Purchase Management Updates Inventory and Vendor Records",
+    "description": "Confirm that purchase entries for liquid and lubricant purchases update stock levels and vendor transaction records correctly.",
+    "category": "functional",
+    "priority": "High",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Navigate to purchase entry page"
+      },
+      {
+        "type": "action",
+        "description": "Enter a new liquid fuel purchase linked to a vendor with valid data"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify purchase saved successfully"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify inventory stock for fuel product increased accordingly"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify vendor transaction updated with purchase detail"
+      },
+      {
+        "type": "action",
+        "description": "Enter a lubricant purchase and validate similar updates"
+      }
+    ]
+  },
+  {
+    "id": "TC009",
+    "title": "Daily Operations Modules Data Integrity and Report Update",
+    "description": "Verify that daily cash reports, denomination tracking, sale rate management, recoveries, and meter readings update corresponding reports and dashboards accurately.",
+    "category": "functional",
+    "priority": "High",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Enter daily cash report data with denominations"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify cash amounts and denominations reconciled and saved"
+      },
+      {
+        "type": "action",
+        "description": "Submit meter reading entries with valid date formats"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify meter readings stored and reflected in daily reports"
+      },
+      {
+        "type": "action",
+        "description": "Enter a recovery payment from customer"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify recovery recorded and customer's balance updated"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify dashboard metrics reflect these updates"
+      }
+    ]
+  },
+  {
+    "id": "TC010",
+    "title": "Financial Management Modules Track Expenses, Recoveries, and Interest",
+    "description": "Validate expense entries, recovery transactions, and interest calculations are correctly processed, saved, and reflected in balances and reports.",
+    "category": "functional",
+    "priority": "High",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Navigate to expenses module and enter a new expense with valid data"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify expense saved and expense records updated"
+      },
+      {
+        "type": "action",
+        "description": "Record an interest transaction linked to a loan and payment"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify interest calculation is accurately computed and saved"
+      },
+      {
+        "type": "action",
+        "description": "Input a recovery payment and verify reconciliation"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify balances and reports update accordingly"
+      }
+    ]
+  },
+  {
+    "id": "TC011",
+    "title": "Stock and Inventory Reporting Accuracy",
+    "description": "Ensure stock reports, opening stock, and minimum stock alert features correctly show inventory status and flag low stock.",
+    "category": "functional",
+    "priority": "High",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Navigate to stock report page and filter by date range"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify stock levels match expected values based on latest purchase and sale transactions"
+      },
+      {
+        "type": "action",
+        "description": "Check minimum stock alert for each product"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify alerts triggered on low stock products"
+      }
+    ]
+  },
+  {
+    "id": "TC012",
+    "title": "API Rejects Invalid UUID and Malformed Requests",
+    "description": "Validate that API endpoints respond with proper error codes and messages when receiving invalid UUID parameters or malformed request payloads.",
+    "category": "error handling",
+    "priority": "High",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Send API request with invalid UUID parameters"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify response status is 400 Bad Request with descriptive error"
+      },
+      {
+        "type": "action",
+        "description": "Send API request with missing required fields and malformed JSON"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify validation errors returned and status codes are appropriate"
+      }
+    ]
+  },
+  {
+    "id": "TC013",
+    "title": "Cache Invalidation Triggers UI Data Refetching",
+    "description": "Test that after mutative operations (create, update, delete), TanStack Query cache invalidates and application refetches updated data to reflect on UI correctly.",
+    "category": "functional",
+    "priority": "Medium",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Perform a data mutation (e.g., add a new vendor)"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify TanStack Query invalidation triggers relevant queries to refetch"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify UI updates automatically without manual refresh showing new data"
+      }
+    ]
+  },
+  {
+    "id": "TC014",
+    "title": "Password Security and JWT Token Management",
+    "description": "Ensure passwords are hashed in the backend, JWT tokens are securely generated, and httpOnly cookies prevent client-side access.",
+    "category": "security",
+    "priority": "High",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Register a new user or create a user record"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify password stored in database is hashed and not plaintext"
+      },
+      {
+        "type": "action",
+        "description": "Perform login to obtain JWT token"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify JWT token is set in httpOnly cookie flagged Secure and SameSite"
+      },
+      {
+        "type": "assertion",
+        "description": "Attempt to access JWT token via client-side scripts and verify it is inaccessible"
+      }
+    ]
+  },
+  {
+    "id": "TC015",
+    "title": "Date Handling and Formatting Compliance",
+    "description": "Validate all date and month input fields accept and store data in YYYY-MM-DD format, with month inputs converted to first-of-month dates correctly.",
+    "category": "functional",
+    "priority": "Medium",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Input a date in correct and incorrect formats in various forms (e.g., meter reading, reports filtering)"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify only valid YYYY-MM-DD format accepted, errors returned otherwise"
+      },
+      {
+        "type": "action",
+        "description": "Input a month value and submit"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify month is converted to first-of-month date prior to saving"
+      }
+    ]
+  },
+  {
+    "id": "TC016",
+    "title": "Comprehensive Integration Test of Sales, Inventory, and Financial Flow",
+    "description": "Execute an end-to-end sales transaction including sale entry, inventory update, customer credit handling, financial recording, and dashboard update to validate data integrity and flow.",
+    "category": "functional",
+    "priority": "High",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Create a new credit customer with specified credit limit"
+      },
+      {
+        "type": "action",
+        "description": "Perform a credit sale to this customer with valid data"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify sale entry is saved, inventory decremented, customer's credit balance updated"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify financial records reflect the sale and updated balances"
+      },
+      {
+        "type": "action",
+        "description": "Navigate to dashboard"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify dashboard reflects updated sales and credit status"
+      }
+    ]
+  },
+  {
+    "id": "TC017",
+    "title": "System Admin Operations and Logs Management",
+    "description": "Verify system administrator can access configurations, view user logs, manage system settings, and that sensitive operations are logged and secured.",
+    "category": "security",
+    "priority": "Medium",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Log in as system administrator"
+      },
+      {
+        "type": "action",
+        "description": "Access system configurations and attempt modification"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify changes persist and reflect expected behavior"
+      },
+      {
+        "type": "action",
+        "description": "View user logs and verify recent actions are recorded"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify logs contain correct timestamps, user identifiers, and action details"
+      }
+    ]
+  },
+  {
+    "id": "TC018",
+    "title": "Vendor Management CRUD Operations with Data Validation",
+    "description": "Confirm that vendor creation, updating, and deletion work as expected and invalid inputs are rejected with proper feedback.",
+    "category": "functional",
+    "priority": "Medium",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Navigate to vendor management page"
+      },
+      {
+        "type": "action",
+        "description": "Attempt to create a vendor with missing mandatory fields"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify validation errors prevent submission"
+      },
+      {
+        "type": "action",
+        "description": "Create vendor with valid data"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify new vendor appears in list and database"
+      },
+      {
+        "type": "action",
+        "description": "Edit vendor details"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify updates reflect correctly"
+      },
+      {
+        "type": "action",
+        "description": "Delete vendor and confirm removal"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify vendor record deleted without leaving orphaned purchase records"
+      }
+    ]
+  }
+]
