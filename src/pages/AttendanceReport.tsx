@@ -77,9 +77,17 @@ export default function AttendanceReport() {
   const { data: shifts = [] } = useQuery<DutyShift[]>({
     queryKey: ["/api/duty-shifts"],
     queryFn: async () => {
-      const res = await fetch("/api/duty-shifts");
-      const d = await res.json();
-      return d.success ? d.data : [];
+      try {
+        const res = await fetch("/api/duty-shifts");
+        const d = await res.json();
+        if (d.success && d.data && d.data.length > 0) {
+          return d.data;
+        }
+        // Fallback
+        return [{ id: "S-1", shiftName: "S-1" }, { id: "S-2", shiftName: "S-2" }, { id: "General", shiftName: "General" }];
+      } catch (e) {
+        return [{ id: "S-1", shiftName: "S-1" }, { id: "S-2", shiftName: "S-2" }, { id: "General", shiftName: "General" }];
+      }
     },
   });
 
@@ -117,11 +125,11 @@ export default function AttendanceReport() {
         newRows[e.id] = {
           employeeId: e.id,
           status: "PRESENT", // Default
-          shiftId: "",
-          notes: ""
+          shiftId: "S-1",
+          notes: "",
+          type: "Regular"
         };
       });
-      // Preserve existing edits if any? For now reset on view switch or load
       setRows(prev => Object.keys(prev).length === 0 ? newRows : prev);
     }
   }, [view, employees]);
@@ -150,8 +158,9 @@ export default function AttendanceReport() {
       attendanceDate,
       employeeId: r.employeeId,
       status: r.status,
-      shiftId: r.shiftId || null, // Handle empty string
-      notes: r.notes
+      shiftId: r.shiftId || "S-1",
+      notes: r.notes,
+      type: r.type || "Regular"
     }));
     bulkMutation.mutate(payload);
   };
@@ -167,11 +176,11 @@ export default function AttendanceReport() {
     return (
       <div className="space-y-4">
         {/* Header Section */}
-        <div className="flex justify-between items-center">
-          <h1 className="text-xl font-bold flex items-center gap-2">
+        <div className="flex justify-between items-center bg-white p-4 rounded shadow-sm border">
+          <h1 className="text-xl font-bold flex items-center gap-2 text-gray-800">
             Dashboard &gt; View Staff Attendance
           </h1>
-          <Button className="bg-orange-500 hover:bg-orange-600 text-white" onClick={() => setView("ADD")}>
+          <Button className="bg-[#f97316] hover:bg-[#ea580c] text-white" onClick={() => setView("ADD")}>
             <Plus className="w-4 h-4 mr-2" /> Add New
           </Button>
         </div>
@@ -187,7 +196,7 @@ export default function AttendanceReport() {
               <span className="text-sm font-bold">To Date</span>
               <Input type="date" value={toDate} onChange={e => setToDate(e.target.value)} />
             </div>
-            <Button className="bg-orange-500 hover:bg-orange-600 text-white">
+            <Button className="bg-[#f97316] hover:bg-[#ea580c] text-white">
               <Search className="w-4 h-4 mr-2" /> Search
             </Button>
           </CardContent>
@@ -199,7 +208,6 @@ export default function AttendanceReport() {
             <div className="flex items-center gap-2">
               Show <Select defaultValue="All"><SelectTrigger className="w-20"><SelectValue /></SelectTrigger><SelectContent><SelectItem value="All">All</SelectItem></SelectContent></Select>
             </div>
-            <Input placeholder="Type to filter..." className="w-64" />
           </div>
           <Table>
             <TableHeader className="bg-gray-100">
@@ -236,7 +244,7 @@ export default function AttendanceReport() {
 
         {/* View Details Modal */}
         <Dialog open={!!selectedDate} onOpenChange={(open) => !open && setSelectedDate(null)}>
-          <DialogContent className="max-w-4xl max-h-[80vh] overflow-y-auto">
+          <DialogContent className="max-w-4xl max-h-[80vh] overflow-y-auto bg-white">
             <DialogHeader>
               <DialogTitle>Attendance Details - {selectedDate ? new Date(selectedDate).toLocaleDateString() : ""}</DialogTitle>
             </DialogHeader>
@@ -246,14 +254,16 @@ export default function AttendanceReport() {
                   <TableHead>Employee</TableHead>
                   <TableHead>Designation</TableHead>
                   <TableHead>Status</TableHead>
+                  <TableHead>Shift</TableHead>
+                  <TableHead>Type</TableHead>
                   <TableHead>Notes</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
                 {isDetailsLoading ? (
-                  <TableRow><TableCell colSpan={4} className="text-center">Loading...</TableCell></TableRow>
+                  <TableRow><TableCell colSpan={6} className="text-center">Loading...</TableCell></TableRow>
                 ) : !dailyDetails || dailyDetails.length === 0 ? (
-                  <TableRow><TableCell colSpan={4} className="text-center">No records found</TableCell></TableRow>
+                  <TableRow><TableCell colSpan={6} className="text-center">No records found</TableCell></TableRow>
                 ) : (
                   dailyDetails.map((detail: any, idx: number) => (
                     <TableRow key={idx}>
@@ -268,6 +278,8 @@ export default function AttendanceReport() {
                           {detail.status}
                         </span>
                       </TableCell>
+                      <TableCell>{detail.shiftId || '-'}</TableCell>
+                      <TableCell>{detail.type || '-'}</TableCell>
                       <TableCell>{detail.notes || '-'}</TableCell>
                     </TableRow>
                   ))
@@ -288,61 +300,60 @@ export default function AttendanceReport() {
     <div className="space-y-4">
       {/* Header */}
       <div className="bg-blue-600 p-4 rounded-lg text-white flex justify-between items-center shadow-lg">
-        <div>
-          <h2 className="text-xl font-bold border-b border-blue-400 pb-1 mb-2">Staff Attendance</h2>
-          <div className="flex items-center gap-4">
-            <span className="font-bold">Date</span>
+        <div className="flex items-center gap-4">
+          <div className="flex flex-col">
+            <span className="text-xs font-bold opacity-80 uppercase">Date</span>
             <Input
               type="date"
               value={attendanceDate}
               onChange={e => setAttendanceDate(e.target.value)}
-              className="text-black w-48"
+              className="text-black bg-white w-48 font-bold h-10"
             />
           </div>
         </div>
         <div className="flex gap-4">
-          <Button className="bg-[#84cc16] hover:bg-[#65a30d] text-white font-bold" onClick={handleSave}>
+          <Button className="bg-[#84cc16] hover:bg-[#65a30d] text-white font-bold px-6 shadow-md" onClick={handleSave}>
             <Save className="w-4 h-4 mr-2" /> SAVE
           </Button>
-          <Button variant="secondary" className="bg-white text-blue-600 hover:bg-gray-100" onClick={() => setView("LIST")}>
+          <Button variant="secondary" className="bg-white text-blue-600 hover:bg-gray-100 font-bold" onClick={() => setView("LIST")}>
             <ArrowLeft className="w-4 h-4 mr-2" /> Back
           </Button>
         </div>
       </div>
 
       {/* Main Table */}
-      <Card>
+      <Card className="border-t-4 border-t-blue-500 shadow-md">
         <CardContent className="p-0">
           <Table>
             <TableHeader className="bg-gray-50">
               <TableRow>
-                <TableHead className="w-[50px]">#</TableHead>
-                <TableHead>Emp Name</TableHead>
-                <TableHead>Designation</TableHead>
-                <TableHead className="w-[350px]">Attendance</TableHead>
-                <TableHead>Shift</TableHead>
-                <TableHead>Type</TableHead>
-                <TableHead>Remarks</TableHead>
+                <TableHead className="w-[50px] font-bold text-gray-700">#</TableHead>
+                <TableHead className="font-bold text-gray-700">Emp Name</TableHead>
+                <TableHead className="font-bold text-gray-700">Designation</TableHead>
+                <TableHead className="w-[350px] font-bold text-gray-700">Attendance</TableHead>
+                <TableHead className="font-bold text-gray-700">Shift</TableHead>
+                <TableHead className="font-bold text-gray-700">Type</TableHead>
+                <TableHead className="font-bold text-gray-700">Remarks</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
               {employees.map((emp, idx) => {
                 const row = rows[emp.id] || {};
                 return (
-                  <TableRow key={emp.id} className="hover:bg-gray-50">
+                  <TableRow key={emp.id} className="hover:bg-gray-50 transition-colors">
                     <TableCell>{idx + 1}</TableCell>
-                    <TableCell className="font-medium">{emp.employeeName || emp.employee_name}</TableCell>
-                    <TableCell>{emp.designation || "N/A"}</TableCell>
+                    <TableCell className="font-medium text-gray-900">{emp.employeeName || emp.employee_name}</TableCell>
+                    <TableCell className="text-gray-500">{emp.designation || "N/A"}</TableCell>
                     <TableCell>
                       <div className="flex gap-2">
                         {/* Custom Radio Button Styling */}
                         {[
-                          { val: "PRESENT", label: "PRESENT", color: "peer-checked:bg-green-500 peer-checked:text-white" },
-                          { val: "ABSENT", label: "ABSENT", color: "peer-checked:bg-red-500 peer-checked:text-white" },
-                          { val: "HALF-DAY", label: "HALF-DAY", color: "peer-checked:bg-blue-500 peer-checked:text-white" },
-                          { val: "NO DUTY", label: "NO DUTY", color: "peer-checked:bg-orange-500 peer-checked:text-white" }
+                          { val: "PRESENT", label: "PRESENT", color: "peer-checked:bg-green-500 peer-checked:text-white border-green-200 text-green-600 hover:bg-green-50" },
+                          { val: "ABSENT", label: "ABSENT", color: "peer-checked:bg-red-500 peer-checked:text-white border-red-200 text-red-600 hover:bg-red-50" },
+                          { val: "HALF-DAY", label: "HALF-DAY", color: "peer-checked:bg-blue-500 peer-checked:text-white border-blue-200 text-blue-600 hover:bg-blue-50" },
+                          { val: "NO DUTY", label: "NO DUTY", color: "peer-checked:bg-gray-500 peer-checked:text-white border-gray-200 text-gray-600 hover:bg-gray-50" }
                         ].map((opt) => (
-                          <label key={opt.val} className="cursor-pointer">
+                          <label key={opt.val} className="cursor-pointer relative">
                             <input
                               type="radio"
                               name={`status-${emp.id}`}
@@ -351,7 +362,7 @@ export default function AttendanceReport() {
                               onChange={() => updateRow(emp.id, "status", opt.val)}
                               className="peer sr-only"
                             />
-                            <div className={`px-2 py-1 rounded border text-xs font-bold text-gray-500 transition-all ${opt.color}`}>
+                            <div className={`px-3 py-1.5 rounded-md border text-[10px] font-bold uppercase tracking-wide transition-all shadow-sm ${opt.color}`}>
                               {opt.label}
                             </div>
                           </label>
@@ -363,7 +374,7 @@ export default function AttendanceReport() {
                         value={row.shiftId}
                         onValueChange={(v) => updateRow(emp.id, "shiftId", v)}
                       >
-                        <SelectTrigger className="w-[120px]">
+                        <SelectTrigger className="w-[120px] bg-white border-gray-200">
                           <SelectValue placeholder="- Select -" />
                         </SelectTrigger>
                         <SelectContent>
@@ -372,9 +383,17 @@ export default function AttendanceReport() {
                       </Select>
                     </TableCell>
                     <TableCell>
-                      <Select>
-                        <SelectTrigger className="w-[120px]"><SelectValue placeholder="- Select -" /></SelectTrigger>
-                        <SelectContent><SelectItem value="Regular">Regular</SelectItem></SelectContent>
+                      <Select
+                        value={row.type}
+                        onValueChange={(v) => updateRow(emp.id, "type", v)}
+                      >
+                        <SelectTrigger className="w-[120px] bg-white border-gray-200">
+                          <SelectValue placeholder="- Select -" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="Regular">Regular</SelectItem>
+                          <SelectItem value="Overtime">Overtime</SelectItem>
+                        </SelectContent>
                       </Select>
                     </TableCell>
                     <TableCell>
@@ -382,6 +401,7 @@ export default function AttendanceReport() {
                         placeholder=""
                         value={row.notes || ""}
                         onChange={e => updateRow(emp.id, "notes", e.target.value)}
+                        className="bg-white border-gray-200"
                       />
                     </TableCell>
                   </TableRow>

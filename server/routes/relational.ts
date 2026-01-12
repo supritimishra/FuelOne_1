@@ -704,9 +704,10 @@ relationalRouter.get("/attendance/details", async (req: Request, res: Response) 
         const { date } = req.query;
         if (!date) return res.status(400).json({ error: "Date is required" });
 
-        const targetDate = new Date(String(date));
-        const start = new Date(targetDate); start.setHours(0, 0, 0, 0);
-        const end = new Date(targetDate); end.setHours(23, 59, 59, 999);
+        // Use UTC bounds for the given date string to avoid timezone offsets
+        const start = new Date(String(date));
+        const end = new Date(start);
+        end.setUTCHours(23, 59, 59, 999);
 
         const results = await Attendance.find({
             attendanceDate: { $gte: start, $lte: end }

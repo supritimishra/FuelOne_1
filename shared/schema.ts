@@ -922,6 +922,7 @@ export const attendance = pgTable("attendance", {
   attendanceDate: date("attendance_date").notNull().default(sql`CURRENT_DATE`),
   employeeId: uuid("employee_id").notNull().references(() => employees.id),
   status: text("status"), // 'Present', 'Absent', 'Half Day', 'Leave'
+  type: text("type"),
   shiftId: uuid("shift_id").references(() => dutyShifts.id),
   notes: text("notes"),
   createdAt: timestamp("created_at").defaultNow(),

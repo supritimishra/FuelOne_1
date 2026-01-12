@@ -157,6 +157,7 @@ export interface IAttendance extends Document {
     attendanceDate: Date;
     employeeId: string; // Reference to Postgres ID
     status: string; // 'Present', 'Absent', 'Half Day'
+    type?: string;
     shiftId?: string; // Reference to Postgres ID
     notes?: string;
     createdBy?: string;
@@ -166,6 +167,7 @@ const AttendanceSchema = new Schema<IAttendance>({
     attendanceDate: { type: Date, required: true },
     employeeId: { type: String, required: true },
     status: { type: String, required: true },
+    type: { type: String },
     shiftId: { type: String },
     notes: { type: String },
     createdBy: { type: String },
