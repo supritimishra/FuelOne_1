@@ -734,13 +734,16 @@ export type DaySettlement = typeof daySettlements.$inferSelect;
 export const dailySaleRates = pgTable("daily_sale_rates", {
   id: uuid("id").primaryKey().defaultRandom(),
   rateDate: date("rate_date").notNull().default(sql`CURRENT_DATE`),
+  shift: text("shift").notNull().default('S-1'), // 'S-1' or 'S-2'
   fuelProductId: uuid("fuel_product_id").notNull().references(() => fuelProducts.id),
   openRate: numeric("open_rate", { precision: 10, scale: 2 }),
   closeRate: numeric("close_rate", { precision: 10, scale: 2 }),
   variationAmount: numeric("variation_amount", { precision: 10, scale: 2 }),
   createdAt: timestamp("created_at").defaultNow(),
   createdBy: uuid("created_by").references(() => users.id),
-});
+}, (table) => ({
+  unq_daily_rate: uniqueIndex("unq_daily_rate_entry").on(table.rateDate, table.shift, table.fuelProductId),
+}));
 
 export const insertDailySaleRateSchema = createInsertSchema(dailySaleRates).omit({ id: true, createdAt: true, variationAmount: true });
 export type InsertDailySaleRate = typeof dailySaleRates.$inferInsert;
@@ -829,6 +832,7 @@ export const vendorTransactions = pgTable("vendor_transactions", {
   amount: numeric("amount", { precision: 12, scale: 2 }).notNull(),
   paymentMode: text("payment_mode"), // 'Cash', 'Bank', 'UPI'
   description: text("description"),
+  employeeId: uuid("employee_id").references(() => employees.id),
   createdAt: timestamp("created_at").defaultNow(),
   createdBy: uuid("created_by").references(() => users.id),
 });
@@ -843,8 +847,11 @@ export const businessTransactions = pgTable("business_transactions", {
   transactionDate: date("transaction_date").notNull().default(sql`CURRENT_DATE`),
   transactionType: text("transaction_type"), // 'Credit', 'Debit'
   partyName: text("party_name").notNull(),
+  effectedParty: text("effected_party"),
+  source: text("source"),
   amount: numeric("amount", { precision: 12, scale: 2 }).notNull(),
   description: text("description"),
+  enteredBy: text("entered_by"),
   createdAt: timestamp("created_at").defaultNow(),
   createdBy: uuid("created_by").references(() => users.id),
 });

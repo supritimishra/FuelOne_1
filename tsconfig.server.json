@@ -2,7 +2,9 @@
   "compilerOptions": {
     "target": "ES2022",
     "module": "ESNext",
-    "lib": ["ES2022"],
+    "lib": [
+      "ES2022"
+    ],
     "strict": true,
     "esModuleInterop": true,
     "skipLibCheck": true,
@@ -11,12 +13,25 @@
     "outDir": "dist-server",
     "baseUrl": ".",
     "paths": {
-      "@/*": ["./src/*"]
+      "@/*": [
+        "./src/*"
+      ]
     },
-    "types": ["node", "express"],
+    "types": [
+      "node",
+      "express"
+    ],
     "allowSyntheticDefaultImports": true,
     "resolveJsonModule": true
   },
-  "include": ["server/**/*.ts", "shared/**/*.ts"],
-  "exclude": ["node_modules", "dist", "src"]
+  "include": [
+    "server/**/*.ts",
+    "shared/**/*.ts",
+    "scripts/cleanup-expired-users.ts"
+  ],
+  "exclude": [
+    "node_modules",
+    "dist",
+    "src"
+  ]
 }

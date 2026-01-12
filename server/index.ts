@@ -1,30 +1,28 @@
-import "dotenv/config";
 import { config } from "dotenv";
 import path from "path";
 
-// Load .local.env file
-config({ path: path.resolve(process.cwd(), '.local.env') });
+// Explicitly load .env file
+const envPath = path.resolve(process.cwd(), '.env');
+config({ path: envPath });
+
 import express from "express";
 import fs from 'fs';
 import cookieParser from "cookie-parser";
 import { createServer as createViteServer } from "vite";
+import { createServer } from "http";
 
 const app = express();
-const PORT = Number(process.env.PORT) || 5000;
 
-console.log("!!! SERVER STARTING - DEBUG VERSION 1 !!!");
-
-// Simple request audit log to help diagnose timeouts (appends to server_requests.log)
-const reqLogFile = path.resolve(process.cwd(), 'server_requests.log');
-function auditReqToFile(req: any) {
-  try {
-    const entry = `${new Date().toISOString()} ${req.method} ${req.path} headers=${JSON.stringify(req.headers || {})}`;
-    fs.appendFileSync(reqLogFile, entry + '\n');
-  } catch (e) {
-    // swallow logging errors
-  }
+// Hard runtime check for MongoDB URI
+if (!process.env.MONGODB_URI) {
+  console.error("❌ FATAL: MONGODB_URI is not defined in the environment.");
+  console.error(`Please ensure that ${envPath} exists and contains MONGODB_URI.`);
+  process.exit(1);
 }
-app.use((req, res, next) => { auditReqToFile(req); next(); });
+
+const PORT = Number(process.env.PORT) || 5001;
+
+console.log("🚀 FuelOne Server Starting...");
 
 // Per-request soft timeout to prevent client hangs (30s)
 app.use((req, res, next) => {
@@ -54,19 +52,8 @@ app.use((req, res, next) => {
   next();
 });
 
-// Early trace: confirm POST /api/recoveries reaches server before auth/tenant
-app.use((req, _res, next) => {
-  try {
-    if (req.method === 'POST' && req.path === '/api/recoveries') {
-      console.log('[POST /api/recoveries] EARLY-PIPE received at', new Date().toISOString());
-    }
-  } catch { }
-  next();
-});
-
 // Super simple health check BEFORE any middleware
 app.get('/health', (req, res) => {
-  console.log('✅ Health check endpoint hit!');
   res.json({ status: 'ok', timestamp: new Date().toISOString() });
 });
 
@@ -109,6 +96,10 @@ app.use((req, res, next) => {
     // Import middleware
     const { authenticateToken } = await import("./auth.js");
     const { attachTenantDb } = await import("./middleware/tenant.js");
+    const { connectToMongo } = await import("./db-mongo.js");
+
+    // Connect to MongoDB (Global)
+    await connectToMongo();
 
     // Public endpoints (before authentication)
     app.get('/api/health', (req, res) => {
@@ -116,12 +107,19 @@ app.use((req, res, next) => {
     });
 
     app.get('/api/readiness', async (req, res) => {
-      const { pool } = await import("./db.js");
-      const started = Date.now();
       try {
-        await pool.query('SELECT 1');
-        const latencyMs = Date.now() - started;
-        res.json({ ok: true, db: 'up', latencyMs });
+        const { connection } = await import("mongoose");
+        // Many Mongoose versions export 'connection' as a named constant, 
+        // but let's be super safe and check both.
+        const mongooseModule: any = await import("mongoose");
+        const state = (mongooseModule.connection || mongooseModule.default?.connection)?.readyState;
+
+        // 1 = connected, 2 = connecting
+        if (state === 1 || state === 2) {
+          res.json({ ok: true, db: 'up', type: 'mongo', state });
+        } else {
+          res.status(503).json({ ok: false, db: 'down', type: 'mongo', state });
+        }
       } catch (err) {
         res.status(503).json({ ok: false, db: 'down', error: String(err) });
       }
@@ -157,7 +155,7 @@ app.use((req, res, next) => {
         const log = (...args: any[]) => console.log('[EARLY-202]', ...args);
         const warn = (...args: any[]) => console.warn('[EARLY-202]', ...args);
         try {
-          // Attach auth + tenant with caps
+          // Attach auth (skip tenant DB attach as we use Mongo)
           await new Promise<void>((resolve, reject) =>
             authenticateToken(req as any, {} as any, (err?: any) => {
               if (err) reject(err);
@@ -165,56 +163,39 @@ app.use((req, res, next) => {
             })
           );
 
-          // Tenant attach with 5s cap
-          const attachPromise = new Promise<void>((resolve, reject) =>
-            attachTenantDb(req as any, {} as any, (err?: any) => {
-              if (err) reject(err);
-              else resolve();
-            })
-          );
-          await Promise.race([
-            attachPromise,
-            new Promise<void>((_, reject) => setTimeout(() => reject(new Error('TENANT_ATTACH_TIMEOUT')), 5000)),
-          ]);
+          const user = (req as any).user;
+          const tenantId = user?.tenantId;
 
-          const tenantDb = (req as any).tenantDb;
-          if (!tenantDb) {
-            warn('No tenantDb after attach; giving up for this request');
+          if (!tenantId) {
+            warn('No tenantId found for recovery insert');
             return;
           }
 
-          // Build INSERT SQL
           const body = req.body || {};
-          const esc = (v: any) => (v === undefined || v === null || String(v).trim() === '' || String(v) === 'undefined' || String(v) === 'null')
-            ? 'NULL' : `'${String(v).replace(/'/g, "''")}'`;
-          const num = (v: any, d = 0) => { const n = Number(v); return Number.isFinite(n) ? n : d; };
-          const uuidVal = (v: any) => {
-            if (!v || v === 'undefined' || v === 'null') return 'NULL';
-            const str = String(v);
-            const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-            return uuidRegex.test(str) ? `'${str}'` : 'NULL';
-          };
-          const computedCustomerName = body.customer_name && String(body.customer_name).trim() !== '' ? String(body.customer_name).trim() : null;
-          const computedShift = (body.shift === 'S-1' || body.shift === 'S-2') ? body.shift : 'S-1';
-          const received = num(body.received_amount, 0);
-          const disc = num(body.discount, 0);
-          const pending = num(body.pending_amount, 0);
-          const balance = num(body.balance_amount, Math.max(0, pending - received - disc));
-          const employeeId = body.employee_id || null;
-          const employeeName = body.employee_name && String(body.employee_name).trim() !== '' ? String(body.employee_name).trim() : null;
+          const { Recovery } = await import("./models/Recovery.js");
 
-          const sql = `
-            INSERT INTO recoveries (
-              credit_customer_id, customer_name, recovery_date, shift, employee_id, employee_name,
-              received_amount, discount, pending_amount, balance_amount, payment_mode, notes
-            )
-            VALUES (
-              ${uuidVal(body.credit_customer_id)}, ${esc(computedCustomerName)}, ${esc(body.recovery_date || new Date().toISOString().slice(0, 10))},
-              ${esc(computedShift)}, ${uuidVal(employeeId)}, ${esc(employeeName)},
-              ${received}, ${disc}, ${pending}, ${balance}, ${esc(body.payment_mode)}, ${esc(body.notes)}
-            )
-            RETURNING id
-          `;
+          // Basic calculations
+          const received = Number(body.received_amount) || 0;
+          const disc = Number(body.discount) || 0;
+          const pending = Number(body.pending_amount) || 0;
+          const balance = Number(body.balance_amount) || Math.max(0, pending - received - disc);
+
+          const payload = {
+            tenantId,
+            creditCustomerId: body.credit_customer_id,
+            customerName: body.customer_name,
+            recoveryDate: body.recovery_date || new Date().toISOString().slice(0, 10),
+            shift: (body.shift === 'S-1' || body.shift === 'S-2') ? body.shift : 'S-1',
+            employeeId: body.employee_id,
+            employeeName: body.employee_name,
+            receivedAmount: received,
+            discount: disc,
+            pendingAmount: pending,
+            balanceAmount: balance,
+            paymentMode: body.payment_mode,
+            notes: body.notes,
+            createdBy: user.userId
+          };
 
           // Retry up to 2 times on transient failures
           let attempt = 0;
@@ -222,9 +203,8 @@ app.use((req, res, next) => {
             try {
               attempt += 1;
               log('Background insert attempt', attempt);
-              const r: any = await tenantDb.execute(sql);
-              const id = r?.rows ? r.rows[0]?.id : (Array.isArray(r) ? r[0]?.id : undefined);
-              log('Background insert finished id:', id, 'in', Date.now() - start, 'ms');
+              const r = await Recovery.create(payload);
+              log('Background insert finished id:', r._id, 'in', Date.now() - start, 'ms');
               break;
             } catch (e: any) {
               const msg = String(e?.message || e || '');
@@ -240,26 +220,59 @@ app.use((req, res, next) => {
     });
 
     // Auth routes (no authentication required)
+    console.log('🔹 Loading auth-routes...');
     app.use("/api/auth", (await import("./auth-routes")).authRouter);
+    console.log('✅ Loaded auth-routes');
 
-    // User management routes (no authentication required)
+    // User management routes
+    console.log('🔹 Loading user-management...');
     app.use("/api/users", (await import("./routes/user-management")).userManagementRouter);
+    console.log('✅ Loaded user-management');
 
-    // Developer mode / feature access routes
+
+    // Developer mode
+    console.log('🔹 Loading developer-mode...');
     app.use("/api/developer-mode", (await import("./routes/developer-mode")).developerModeRouter);
+    console.log('✅ Loaded developer-mode');
+
+    // Feature access
+    console.log('🔹 Loading feature-access...');
     app.use("/api/features", (await import("./routes/feature-access")).featureAccessRouter);
+    console.log('✅ Loaded feature-access');
+
+    // Reports module
+    console.log('🔹 Loading reports...');
+    app.use("/api/reports", authenticateToken, attachTenantDb, (await import("./routes/reports")).reportsRouter);
+    console.log('✅ Loaded reports');
+
 
     // API routes with authentication and tenant middleware
     try {
+      console.log('🔹 Loading main routes...');
       const routesModule: any = await import("./routes");
+
       const mainRouter = routesModule && typeof routesModule.router === "function"
         ? routesModule.router
         : express.Router().use((req, res) => {
-            console.warn("[server] Main API router missing, returning 501 for", req.method, req.path);
-            res.status(501).json({ ok: false, error: "API router not configured" });
-          });
+          console.warn("[server] Main API router missing, returning 501 for", req.method, req.path);
+          res.status(501).json({ ok: false, error: "API router not configured" });
+        });
 
-      app.use("/api", authenticateToken, attachTenantDb, mainRouter);
+      app.use("/api", authenticateToken, (req, res, next) => {
+        const mongoPaths = ['/fuel-products', '/daily-rates', '/business-transactions', '/vendor-transactions', '/vendors', '/employees'];
+        const normalizedPath = req.path.endsWith('/') ? req.path.slice(0, -1) : req.path;
+
+        if (mongoPaths.some(p => normalizedPath.startsWith(p))) {
+          return next();
+        }
+        attachTenantDb(req, res, next);
+      }, mainRouter);
+
+      // 404 catch-all for /api routes that were not handled by mainRouter
+      app.use("/api", (req, res) => {
+        if (process.env.AUTH_DEBUG === '1') console.log(`🚫 [API] 404 Not Found: ${req.method} ${req.path}`);
+        res.status(404).json({ ok: false, error: `API endpoint ${req.method} ${req.path} not found or not yet migrated to MongoDB` });
+      });
     } catch (e) {
       console.error("[server] Failed to load main API router, mounting fallback handler:", e);
       const fallbackRouter = express.Router();
@@ -269,15 +282,19 @@ app.use((req, res, next) => {
       app.use("/api", authenticateToken, attachTenantDb, fallbackRouter);
     }
 
+    // Create HTTP server instance first to pass to Vite
+    const server = createServer(app);
+
     // TEMPORARILY DISABLE VITE FOR DEBUGGING
     // Vite dev server (middleware mode)
     // Completely disable HMR and WebSocket for TestSprite compatibility
     const vite = await createViteServer({
       server: {
         middlewareMode: true,
-        hmr: false, // Completely disable HMR for TestSprite compatibility
-        ws: false, // Disable WebSocket server entirely
-        port: 8080, // Explicitly set port
+        hmr: {
+          server: server,
+          clientPort: 5001
+        },
       },
       // Use custom app type but allow Vite client for development
       appType: "custom",
@@ -334,8 +351,9 @@ app.use((req, res, next) => {
 
     // SPA fallback - serve index.html for all non-API routes
     app.use(async (req, res, next) => {
-      // Skip API routes
-      if (req.path.startsWith('/api/')) {
+      // Skip API routes and files with extensions (assets, scripts)
+      // This prevents main.tsx being served as index.html (causing "Unexpected token <")
+      if (req.path.startsWith('/api/') || req.path.includes('.')) {
         return next();
       }
 
@@ -374,7 +392,7 @@ app.use((req, res, next) => {
       }
     });
 
-    const server = app.listen(PORT, "0.0.0.0", async () => {
+    server.listen(PORT, "0.0.0.0", async () => {
       console.log(`Server running on http://localhost:${PORT}`);
 
       // Start background job schedulers

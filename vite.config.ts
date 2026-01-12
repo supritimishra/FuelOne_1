@@ -10,11 +10,11 @@ export default defineConfig(({ mode }) => ({
     port: 5174,
     strictPort: true,
     allowedHosts: true,
-    hmr: false, // Disable HMR to prevent WebSocket connection issues
-    ws: false, // Disable WebSocket to prevent connection errors
+    // hmr: false, // Re-enabled
+    // ws: false, // Re-enabled
     proxy: {
       '/api': {
-        target: 'http://localhost:5000',
+        target: 'http://localhost:5001',
         changeOrigin: true,
         secure: false,
       },

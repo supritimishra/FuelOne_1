@@ -51,16 +51,6 @@ export async function authenticateToken(req: AuthRequest, res: Response, next: N
     console.log('🔐 [AUTH] Token preview:', token ? token.substring(0, 20) + '...' : 'NO TOKEN');
   }
 
-  // For TestSprite testing, allow test user
-  if (testUser === 'TestSprite') {
-    if (AUTH_DEBUG) console.log('🔐 [AUTH] Using TestSprite test user');
-    req.user = {
-      userId: 'test-user-id',
-      email: 'test@testsprite.com',
-      tenantId: 'test-tenant-id'
-    };
-    return next();
-  }
 
   if (!token) {
     if (AUTH_DEBUG) console.log('🔐 [AUTH] No token provided - returning 401');
@@ -81,21 +71,16 @@ export async function authenticateToken(req: AuthRequest, res: Response, next: N
 
     // Check if token is blacklisted
     try {
-      const { pool: masterPool } = await import('./db.js');
-      const tokenParts = token.split('.');
-      const tokenSignature = tokenParts.length > 2 ? tokenParts[2] : token; // JWT signature part
-      
-      // Check if user's email has been force-logged out
-      const blacklistCheck = await masterPool.query(
-        `SELECT 1 FROM invalidated_tokens 
-         WHERE user_email = $1 
-           AND expires_at > NOW() 
-           AND reason = 'force_logout'
-         LIMIT 1`,
-        [payload.email.toLowerCase()]
-      );
+      const { InvalidatedToken } = await import('./models/InvalidatedToken.js');
 
-      if (blacklistCheck.rows.length > 0) {
+      // Check if user's email has been force-logged out
+      const blacklistCheck = await InvalidatedToken.findOne({
+        userEmail: payload.email.toLowerCase(),
+        reason: 'force_logout',
+        expiresAt: { $gt: new Date() }
+      });
+
+      if (blacklistCheck) {
         if (AUTH_DEBUG) console.log('🔐 [AUTH] Token blacklisted - user was force logged out');
         return res.status(401).json({ error: 'Session expired. Please login again.' });
       }
