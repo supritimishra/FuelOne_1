@@ -1,0 +1,142 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Petrol Pump Dashboard - Test</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 0;
+            padding: 20px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            min-height: 100vh;
+        }
+        .container {
+            max-width: 800px;
+            margin: 0 auto;
+            text-align: center;
+        }
+        .status {
+            background: rgba(255, 255, 255, 0.1);
+            padding: 20px;
+            border-radius: 10px;
+            margin: 20px 0;
+        }
+        .success { background: rgba(76, 175, 80, 0.2); }
+        .error { background: rgba(244, 67, 54, 0.2); }
+        button {
+            background: #4CAF50;
+            color: white;
+            border: none;
+            padding: 15px 30px;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 16px;
+            margin: 10px;
+        }
+        button:hover { background: #45a049; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🚀 Petrol Pump Dashboard - Test Page</h1>
+        <p>This page verifies that the application is loading correctly without WebSocket issues.</p>
+        
+        <div class="status success">
+            <h3>✅ Application Status</h3>
+            <p>Server is running on http://localhost:5000</p>
+            <p>Vite HMR is disabled for TestSprite compatibility</p>
+            <p>Mock authentication is available for testing</p>
+        </div>
+        
+        <div class="status">
+            <h3>🧪 Test Credentials</h3>
+            <p><strong>Username:</strong> test</p>
+            <p><strong>Password:</strong> TestSprite123!</p>
+            <p><strong>Alternative:</strong> TestSprite / TestSprite123!</p>
+        </div>
+        
+        <button onclick="testAuth()">Test Authentication</button>
+        <button onclick="testAPI()">Test API Connection</button>
+        <button onclick="goToApp()">Go to Main App</button>
+        
+        <div id="results" class="status" style="display: none;">
+            <h3>Test Results</h3>
+            <div id="resultContent"></div>
+        </div>
+    </div>
+
+    <script>
+        function testAuth() {
+            const results = document.getElementById('results');
+            const content = document.getElementById('resultContent');
+            
+            results.style.display = 'block';
+            results.className = 'status';
+            
+            // Test mock session creation
+            const mockUser = {
+                id: 'test-user-id',
+                email: 'test@testsprite.com',
+                user_metadata: { full_name: 'TestSprite User', role: 'super_admin' }
+            };
+            
+            const mockSession = {
+                access_token: 'mock-access-token-' + Date.now(),
+                refresh_token: 'mock-refresh-token-' + Date.now(),
+                expires_at: Math.floor(Date.now() / 1000) + 3600,
+                expires_in: 3600,
+                token_type: 'bearer',
+                user: mockUser
+            };
+            
+            localStorage.setItem('sb-rozgwrsgenmsixvrdvxu-auth-token', JSON.stringify(mockSession));
+            
+            content.innerHTML = `
+                <p>✅ Mock session created successfully</p>
+                <p>✅ User ID: ${mockUser.id}</p>
+                <p>✅ Role: ${mockUser.user_metadata.role}</p>
+                <p>✅ Token expires: ${new Date(mockSession.expires_at * 1000).toLocaleString()}</p>
+            `;
+            results.className = 'status success';
+        }
+        
+        function testAPI() {
+            const results = document.getElementById('results');
+            const content = document.getElementById('resultContent');
+            
+            results.style.display = 'block';
+            results.className = 'status';
+            
+            fetch('/api/test')
+                .then(response => response.json())
+                .then(data => {
+                    content.innerHTML = `
+                        <p>✅ API connection successful</p>
+                        <p>✅ Response: ${data.message}</p>
+                        <p>✅ Timestamp: ${data.timestamp}</p>
+                    `;
+                    results.className = 'status success';
+                })
+                .catch(error => {
+                    content.innerHTML = `
+                        <p>❌ API connection failed</p>
+                        <p>❌ Error: ${error.message}</p>
+                    `;
+                    results.className = 'status error';
+                });
+        }
+        
+        function goToApp() {
+            window.location.href = '/';
+        }
+        
+        // Auto-test on page load
+        window.onload = function() {
+            setTimeout(testAPI, 1000);
+        };
+    </script>
+</body>
+</html>

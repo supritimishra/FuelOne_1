@@ -1,0 +1,192 @@
+@import url('https://fonts.googleapis.com/css2?family=Roboto:wght@100;300;400;500;700;900&display=swap');
+
+/* Roboto font faces (subset declarations) - imported from Google Fonts urls */
+/* weight: 100,300,400,500,700,900 - unicode ranges included as in original source */
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+
+/* Definition of the design system. All colors, gradients, fonts, etc should be defined here. 
+All colors MUST be HSL.
+*/
+
+@layer base {
+  :root {
+    --background: 210 20% 98%;
+    --foreground: 222 47% 11%;
+
+    --card: 0 0% 100%;
+    --card-foreground: 222 47% 11%;
+
+    --popover: 0 0% 100%;
+    --popover-foreground: 222 47% 11%;
+
+    --primary: 243 75% 59%;
+    --primary-foreground: 0 0% 100%;
+
+    --secondary: 220 14% 96%;
+    --secondary-foreground: 222 47% 11%;
+
+    --muted: 220 14% 96%;
+    --muted-foreground: 220 9% 46%;
+
+    --accent: 262 83% 58%;
+    --accent-foreground: 0 0% 100%;
+
+    --destructive: 0 84% 60%;
+    --destructive-foreground: 0 0% 100%;
+
+    --success: 142 76% 36%;
+    --success-foreground: 0 0% 100%;
+
+    --warning: 38 92% 50%;
+    --warning-foreground: 0 0% 100%;
+
+    --border: 214 32% 91%;
+    --input: 214 32% 91%;
+    --ring: 243 75% 59%;
+
+    --radius: 0.5rem;
+
+    /* Light sidebar defaults */
+    --sidebar-background: 0 0% 100%;          /* white */
+    --sidebar-foreground: 222 47% 11%;        /* gray-900 */
+    --sidebar-primary: 217 91% 60%;           /* tailwind blue-500 */
+    --sidebar-primary-foreground: 0 0% 100%;  /* white */
+    --sidebar-accent: 220 14% 96%;            /* gray-100 */
+    --sidebar-accent-foreground: 222 47% 11%; /* gray-900 */
+    --sidebar-border: 214 32% 91%;            /* gray-200 */
+    --sidebar-ring: 217 91% 60%;              /* blue-500 */
+
+    --chart-1: 243 75% 59%;
+    --chart-2: 173 100% 50%;
+    --chart-3: 291 64% 42%;
+    --chart-4: 30 100% 50%;
+    --chart-5: 0 84% 60%;
+
+    /* Dashboard gradient backgrounds */
+    --dashboard-gradient-1: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    --dashboard-gradient-2: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
+    --dashboard-gradient-3: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%);
+    --dashboard-gradient-4: linear-gradient(135deg, #43e97b 0%, #38f9d7 100%);
+    --dashboard-gradient-5: linear-gradient(135deg, #fa709a 0%, #fee140 100%);
+    
+    /* Vibrant chart colors */
+    --chart-vibrant-1: #FF6B6B;
+    --chart-vibrant-2: #4ECDC4;
+    --chart-vibrant-3: #45B7D1;
+    --chart-vibrant-4: #FFA07A;
+    --chart-vibrant-5: #98D8C8;
+    --chart-vibrant-6: #DDA0DD;
+    --chart-vibrant-7: #20B2AA;
+    --chart-vibrant-8: #FFB347;
+  }
+
+  .dark {
+    --background: 222 47% 11%;
+    --foreground: 210 40% 98%;
+
+    --card: 222 47% 13%;
+    --card-foreground: 210 40% 98%;
+
+    --popover: 222 47% 13%;
+    --popover-foreground: 210 40% 98%;
+
+    --primary: 243 75% 59%;
+    --primary-foreground: 0 0% 100%;
+
+    --secondary: 217 33% 17%;
+    --secondary-foreground: 210 40% 98%;
+
+    --muted: 217 33% 17%;
+    --muted-foreground: 215 20% 65%;
+
+    --accent: 262 83% 58%;
+    --accent-foreground: 0 0% 100%;
+
+    --destructive: 0 63% 31%;
+    --destructive-foreground: 210 40% 98%;
+
+    --success: 142 76% 36%;
+    --success-foreground: 0 0% 100%;
+
+    --warning: 38 92% 50%;
+    --warning-foreground: 0 0% 100%;
+
+    --border: 217 33% 17%;
+    --input: 217 33% 17%;
+    --ring: 243 75% 59%;
+
+    --sidebar-background: 231 48% 14%;
+    --sidebar-foreground: 210 40% 98%;
+    --sidebar-primary: 243 75% 59%;
+    --sidebar-primary-foreground: 0 0% 100%;
+    --sidebar-accent: 231 48% 20%;
+    --sidebar-accent-foreground: 210 40% 98%;
+    --sidebar-border: 231 48% 20%;
+    --sidebar-ring: 243 75% 59%;
+
+    --chart-1: 243 75% 59%;
+    --chart-2: 173 100% 50%;
+    --chart-3: 291 64% 42%;
+    --chart-4: 30 100% 50%;
+    --chart-5: 0 84% 60%;
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+
+  body {
+    @apply bg-background text-foreground;
+  }
+
+  /* Fix for 'text-size-adjust' warning */
+  html,
+  :host {
+    -webkit-text-size-adjust: 100%;
+    text-size-adjust: 100%;
+  }
+
+  /* Fix for 'user-select' warning in Sonner toast */
+  [data-sonner-toast][data-swiped=true] {
+    -webkit-user-select: none;
+    user-select: none;
+  }
+
+  /* Generic toggle switch styling for checkbox + label pattern
+     Used in vendors, swipe machines, guest pages, etc. */
+  .toggle-checkbox {
+    left: 0;
+    @apply transition-all duration-200;
+  }
+
+  .toggle-label {
+    @apply bg-gray-300;
+  }
+
+  .toggle-label::before {
+    content: "";
+    position: absolute;
+    top: 0.125rem; /* 2px */
+    left: 0.125rem;
+    width: 1rem;  /* 16px */
+    height: 1rem; /* 16px */
+    border-radius: 9999px;
+    background-color: white;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.3);
+    transition: transform 0.2s ease-in-out, background-color 0.2s ease-in-out;
+  }
+
+  input.toggle-checkbox:checked + .toggle-label {
+    @apply bg-emerald-400;
+  }
+
+  input.toggle-checkbox:checked + .toggle-label::before {
+    transform: translateX(1.25rem); /* slide knob to the right */
+  }
+}

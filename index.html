@@ -1,0 +1,62 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Petrol Pump Management System</title>
+    <meta name="description" content="Comprehensive multi-tenant petrol pump management system. Manage daily sales, inventory, credit customers, and generate reports efficiently." />
+    <meta name="author" content="Petrol Pump Management" />
+    <!-- Favicons using brand logo with SVG fallback -->
+    <!-- ICO first for maximum browser compatibility -->
+    <link rel="icon" type="image/x-icon" href="data:image/x-icon;base64,AAABAAEAEBAQAAEAAADoAgAAFgAAACgAAAAQAAAAIAAAAAEAAQAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA////AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=" />
+    <link rel="icon" type="image/png" sizes="16x16" href="/brand-logo-16.png" />
+    <link rel="icon" type="image/png" sizes="32x32" href="/brand-logo-32.png" />
+    <link rel="shortcut icon" type="image/png" href="/brand-logo.png" />
+    <link rel="icon" type="image/svg+xml" href="/placeholder.svg" />
+    <!-- Inline data-URI favicon to bust all caches in the tab header -->
+    <link rel="icon" type="image/svg+xml" href='data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64"><rect width="64" height="64" rx="8" fill="%23eeeeee"/><path d="M20 28h24v8H20z" fill="%23999"/></svg>' />
+    <link rel="shortcut icon" type="image/svg+xml" href='data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64"><rect width="64" height="64" rx="8" fill="%23eeeeee"/><path d="M20 28h24v8H20z" fill="%23999"/></svg>' />
+    <link rel="apple-touch-icon" href='data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64"><rect width="64" height="64" rx="8" fill="%23eeeeee"/><path d="M20 28h24v8H20z" fill="%23999"/></svg>' />
+
+    <meta property="og:title" content="Petrol Pump Management System" />
+    <meta property="og:description" content="Comprehensive multi-tenant petrol pump management system" />
+    <meta property="og:type" content="website" />
+    <!-- Removed external provider branding image -->
+    <meta property="og:image" content="/og-default.png" />
+
+    <meta name="twitter:card" content="summary_large_image" />
+    <!-- Removed external provider handle/image -->
+    <meta name="twitter:image" content="/og-default.png" />
+  </head>
+
+  <body>
+    <div id="root"></div>
+    <script type="module" src="/src/main.tsx"></script>
+    
+    <!-- Suppress known harmless console warnings -->
+    <script>
+      // Suppress Vite HMR WebSocket errors (HMR is intentionally disabled)
+      const originalError = console.error;
+      console.error = (...args) => {
+        const message = args[0]?.toString() || '';
+        // Suppress WebSocket connection errors (HMR disabled by design)
+        if (message.includes('WebSocket') || 
+            message.includes('ws://localhost') ||
+            message.includes('server connection lost')) {
+          return;
+        }
+        originalError.apply(console, args);
+      };
+      
+      // Suppress Vite warning logs
+      const originalWarn = console.warn;
+      console.warn = (...args) => {
+        const message = args[0]?.toString() || '';
+        if (message.includes('server connection lost')) {
+          return;
+        }
+        originalWarn.apply(console, args);
+      };
+    </script>
+  </body>
+</html>
