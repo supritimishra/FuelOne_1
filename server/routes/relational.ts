@@ -717,10 +717,11 @@ relationalRouter.get("/attendance/details", async (req: Request, res: Response) 
         let employeeMap: Record<string, { name: string, designation: string }> = {};
 
         if (employeeIds.length > 0) {
-            const emps = await db.select({ id: employees.id, name: employees.employeeName, role: employees.designation })
-                .from(employees)
-                .where(inArray(employees.id, employeeIds as string[]));
-            emps.forEach(e => employeeMap[e.id] = { name: e.name, designation: e.role || '' });
+            // Fetch from MongoDB
+            const emps = await Employee.find({ _id: { $in: employeeIds } });
+            emps.forEach(e => {
+                employeeMap[e._id as string] = { name: e.employeeName, designation: e.designation || '' };
+            });
         }
 
         const mapped = results.map(r => ({
@@ -741,13 +742,23 @@ relationalRouter.post("/attendance/bulk", async (req: Request, res: Response) =>
         const body = req.body;
         if (!Array.isArray(body)) return res.status(400).json({ success: false, error: "Expected array" });
 
+        // Relax validation for MongoDB mode (shiftId might be "S-1")
+        const bulkAttendanceSchema = insertAttendanceSchema.extend({
+            shiftId: z.string().optional().nullable(),
+            type: z.string().optional()
+        });
+
         const results = [];
         for (const item of body) {
-            const data = insertAttendanceSchema.parse(item);
+            const data = bulkAttendanceSchema.parse(item);
             const dateObj = data.attendanceDate ? new Date(data.attendanceDate) : new Date();
+
+            // Clean up payload for Mongoose
+            const payload: any = { ...data, attendanceDate: dateObj, createdBy: (req as any).user?.id };
+
             const updated = await Attendance.findOneAndUpdate(
                 { attendanceDate: dateObj, employeeId: data.employeeId },
-                { ...data, attendanceDate: dateObj, createdBy: (req as any).user?.id },
+                payload,
                 { new: true, upsert: true }
             );
             results.push({ ...updated.toObject(), id: updated._id });
