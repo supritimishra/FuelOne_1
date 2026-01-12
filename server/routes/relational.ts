@@ -743,9 +743,13 @@ relationalRouter.post("/attendance/bulk", async (req: Request, res: Response) =>
         if (!Array.isArray(body)) return res.status(400).json({ success: false, error: "Expected array" });
 
         // Relax validation for MongoDB mode (shiftId might be "S-1")
-        const bulkAttendanceSchema = insertAttendanceSchema.extend({
+        const bulkAttendanceSchema = z.object({
+            attendanceDate: z.string().or(z.date()),
+            employeeId: z.string(),
+            status: z.string(),
             shiftId: z.string().optional().nullable(),
-            type: z.string().optional()
+            notes: z.string().optional().nullable(),
+            type: z.string().optional().nullable()
         });
 
         const results = [];
