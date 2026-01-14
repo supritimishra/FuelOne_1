@@ -2,7 +2,7 @@
 
 A comprehensive management system for petrol pump operations including sales, inventory, employees, and financial tracking.
 
-## 🚀 Quick Start
+## 🚀 Quick Start.
 
 ### Prerequisites
 - Node.js (v18 or higher)
