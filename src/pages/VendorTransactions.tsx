@@ -3,6 +3,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { invalidateQueries } from "@/lib/cacheInvalidation";
 import { Skeleton } from "@/components/ui/skeleton";
 import {
   Select,
@@ -23,90 +24,40 @@ export default function VendorTransactions() {
   const [showForm, setShowForm] = useState(false);
   const [formData, setFormData] = useState({ id: "", vendor_id: "", amount: "0", transaction_type: "Credit", payment_mode: "Cash", description: "", transaction_date: new Date().toISOString().slice(0, 10), employee_id: "" });
 
-  // Filter states
-  const [filterFrom, setFilterFrom] = useState("");
-  const [filterTo, setFilterTo] = useState("");
-  const [filterVendor, setFilterVendor] = useState("");
-
-  const { data: transactions = [], isLoading: transactionsLoading, error: transactionsError } = useQuery({
-    queryKey: ["/api/vendor-transactions", filterFrom, filterTo, filterVendor],
+  const { data: transactions = [], isLoading: transactionsLoading } = useQuery({
+    queryKey: ["/api/vendor-transactions"],
     queryFn: async () => {
-      try {
-        const params = new URLSearchParams();
-        if (filterFrom) params.append('from', filterFrom);
-        if (filterTo) params.append('to', filterTo);
-        if (filterVendor && filterVendor !== "ALL") params.append('vendor_id', filterVendor);
-
-        const apiBase = (import.meta as any)?.env?.VITE_API_URL || '';
-        const response = await fetch(`${apiBase}/api/vendor-transactions?${params.toString()}`, {
-          credentials: 'include'
-        });
-
-        if (!response.ok) {
-          throw new Error(`HTTP error! status: ${response.status}`);
-        }
-
-        const result = await response.json();
-        if (!result?.ok) throw new Error(result?.error || 'Failed to fetch vendor transactions');
-        return result?.rows || [];
-      } catch (error: any) {
-        // Keeping console.error for production monitoring
-        console.error('Error fetching vendor transactions:', error);
-        throw error;
-      }
+      const response = await fetch('/api/vendor-transactions', {
+        credentials: 'include'
+      });
+      const result = await response.json();
+      if (!result.ok) throw new Error(result.error || 'Failed to fetch vendor transactions');
+      return result.rows || [];
     },
-    retry: 1,
-    retryDelay: 1000,
   });
 
-  const { data: vendors = [], error: vendorsError } = useQuery({
+  const { data: vendors = [] } = useQuery({
     queryKey: ["/api/vendors"],
     queryFn: async () => {
-      try {
-        const apiBase = (import.meta as any)?.env?.VITE_API_URL || '';
-        const response = await fetch(`${apiBase}/api/vendors`, {
-          credentials: 'include'
-        });
-
-        if (!response.ok) {
-          throw new Error(`HTTP error! status: ${response.status}`);
-        }
-
-        const result = await response.json();
-        if (!result?.ok) throw new Error(result?.error || 'Failed to fetch vendors');
-        return result?.rows || [];
-      } catch (error: any) {
-        console.error('Error fetching vendors:', error);
-        throw error;
-      }
+      const response = await fetch('/api/vendors', {
+        credentials: 'include'
+      });
+      const result = await response.json();
+      if (!result.ok) throw new Error(result.error || 'Failed to fetch vendors');
+      return result.rows || [];
     },
-    retry: 1,
-    retryDelay: 1000,
   });
 
-  const { data: employees = [], error: employeesError } = useQuery({
+  const { data: employees = [] } = useQuery({
     queryKey: ["/api/employees"],
     queryFn: async () => {
-      try {
-        const apiBase = (import.meta as any)?.env?.VITE_API_URL || '';
-        const response = await fetch(`${apiBase}/api/employees`, {
-          credentials: 'include'
-        });
-
-        if (!response.ok) {
-          throw new Error(`HTTP error! status: ${response.status}`);
-        }
-
-        const result = await response.json();
-        if (!result?.ok) throw new Error(result?.error || 'Failed to fetch employees');
-        return result?.rows || [];
-      } catch (error: any) {
-        console.error('Error fetching employees:', error);
-        throw error;
-      }
+      const response = await fetch('/api/employees', {
+        credentials: 'include'
+      });
+      const result = await response.json();
+      if (!result.ok) throw new Error(result.error || 'Failed to fetch employees');
+      return result.rows || [];
     },
-    retry: 1,
-    retryDelay: 1000,
   });
 
   const saveTransactionMutation = useMutation({
@@ -117,13 +68,13 @@ export default function VendorTransactions() {
         transaction_type: transactionData.transaction_type,
         payment_mode: transactionData.payment_mode,
         description: transactionData.description,
+        description: transactionData.description,
         transaction_date: transactionData.transaction_date,
         employee_id: transactionData.employee_id || null,
       };
 
       const method = transactionData.id ? 'PUT' : 'POST';
-      const apiBase = (import.meta as any)?.env?.VITE_API_URL || '';
-      const url = transactionData.id ? `${apiBase}/api/vendor-transactions/${transactionData.id}` : `${apiBase}/api/vendor-transactions`;
+      const url = transactionData.id ? `/api/vendor-transactions/${transactionData.id}` : '/api/vendor-transactions';
 
       const response = await fetch(url, {
         method,
@@ -135,8 +86,8 @@ export default function VendorTransactions() {
       });
 
       const result = await response.json();
-      if (!result?.ok) {
-        throw new Error(result?.error || 'Failed to save transaction');
+      if (!result.ok) {
+        throw new Error(result.error || 'Failed to save transaction');
       }
     },
     onSuccess: () => {
@@ -157,15 +108,14 @@ export default function VendorTransactions() {
 
   const deleteTransactionMutation = useMutation({
     mutationFn: async (id: string) => {
-      const apiBase = (import.meta as any)?.env?.VITE_API_URL || '';
-      const response = await fetch(`${apiBase}/api/vendor-transactions/${id}`, {
+      const response = await fetch(`/api/vendor-transactions/${id}`, {
         method: 'DELETE',
         credentials: 'include'
       });
 
       const result = await response.json();
-      if (!result?.ok) {
-        throw new Error(result?.error || 'Failed to delete transaction');
+      if (!result.ok) {
+        throw new Error(result.error || 'Failed to delete transaction');
       }
     },
     onSuccess: () => {
@@ -192,45 +142,9 @@ export default function VendorTransactions() {
   };
 
   const handleEdit = (t: any) => {
-    setFormData({
-      id: t.id,
-      vendor_id: t.vendorId || t.vendor_id,
-      amount: String(t.amount || 0),
-      transaction_type: t.transactionType || t.transaction_type || "Credit",
-      payment_mode: t.paymentMode || t.payment_mode || "Cash",
-      description: t.description || "",
-      transaction_date: t.transactionDate || t.transaction_date || new Date().toISOString().slice(0, 10),
-      employee_id: t.employeeId || t.employee_id || ""
-    });
+    setFormData({ id: t.id, vendor_id: t.vendor_id, amount: String(t.amount || 0), transaction_type: t.transaction_type || "Credit", payment_mode: t.payment_mode || "Cash", description: t.description || "", transaction_date: t.transaction_date || new Date().toISOString().slice(0, 10), employee_id: t.employee_id || "" });
     setShowForm(true);
   };
-
-  // Show error messages if queries fail
-  if (transactionsError || vendorsError || employeesError) {
-    const errorMessage = transactionsError?.message || vendorsError?.message || employeesError?.message || 'Failed to load data';
-    return (
-      <div className="p-6 space-y-6">
-        <div className="flex items-center gap-2 text-sm"><span className="font-semibold">Dashboard</span><span>/</span><span>Vendor Transactions</span></div>
-        <Card>
-          <CardContent className="pt-6">
-            <div className="text-center py-8">
-              <p className="text-red-600 font-medium">Error loading data: {errorMessage}</p>
-              <Button
-                className="mt-4"
-                onClick={() => {
-                  queryClient.invalidateQueries({ queryKey: ["/api/vendor-transactions"] });
-                  queryClient.invalidateQueries({ queryKey: ["/api/vendors"] });
-                  queryClient.invalidateQueries({ queryKey: ["/api/employees"] });
-                }}
-              >
-                Retry
-              </Button>
-            </div>
-          </CardContent>
-        </Card>
-      </div>
-    );
-  }
 
   return (
     <div className="p-6 space-y-6">
@@ -257,11 +171,11 @@ export default function VendorTransactions() {
               <Input placeholder="Date" className="bg-white text-black" value={formData.transaction_date} onChange={(e) => setFormData({ ...formData, transaction_date: e.target.value })} />
             </div>
             <div className="col-span-4">
-              <Select value={formData.employee_id} onValueChange={(val) => setFormData({ ...formData, employee_id: val })}>
+              <Select value={formData.employee_id} onValueChange={(value) => setFormData({ ...formData, employee_id: value })}>
                 <SelectTrigger className="bg-white text-black"><SelectValue placeholder="Select Employee" /></SelectTrigger>
                 <SelectContent>
                   {employees.map((e: any) => (
-                    <SelectItem key={String(e.id || e._id)} value={String(e.id || e._id)}>{e.employee_name || e.employeeName || 'Unknown'}</SelectItem>
+                    <SelectItem key={e.id} value={e.id}>{e.name}</SelectItem>
                   ))}
                 </SelectContent>
               </Select>
@@ -271,7 +185,7 @@ export default function VendorTransactions() {
                 <SelectTrigger className="bg-white text-black"><SelectValue placeholder="Vendor*" /></SelectTrigger>
                 <SelectContent>
                   {vendors.map((v) => (
-                    <SelectItem key={String(v.id)} value={String(v.id)}>{v.vendor_name || 'Unknown'}</SelectItem>
+                    <SelectItem key={v.id} value={v.id}>{v.vendor_name}</SelectItem>
                   ))}
                 </SelectContent>
               </Select>
@@ -304,7 +218,7 @@ export default function VendorTransactions() {
           </div>
 
           <div className="flex justify-center">
-            <Button className="rounded-full bg-orange-500 hover:bg-orange-600 text-white px-8" onClick={handleSubmit}>SAVE</Button>
+            <Button className="rounded-full bg-orange-500 hover:bg-orange-600 text-white px-8" onClick={(e) => { e.preventDefault(); (handleSubmit as any)(e); }}>SAVE</Button>
           </div>
         </CardContent>
       </Card>
@@ -313,21 +227,10 @@ export default function VendorTransactions() {
       <Card>
         <CardContent className="space-y-3 pt-6">
           <div className="grid grid-cols-12 gap-4 items-center">
-            <div className="col-span-3 flex items-center gap-2"><span>From Date</span><Input type="date" className="w-44" placeholder="Filter Date" value={filterFrom} onChange={(e) => setFilterFrom(e.target.value)} /></div>
-            <div className="col-span-3 flex items-center gap-2"><span>To Date</span><Input type="date" className="w-44" placeholder="Filter Date" value={filterTo} onChange={(e) => setFilterTo(e.target.value)} /></div>
-            <div className="col-span-4 flex items-center gap-2">
-              <span>Vendor</span>
-              <Select value={filterVendor} onValueChange={setFilterVendor}>
-                <SelectTrigger className="w-full"><SelectValue placeholder="Select Vendor" /></SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="ALL">All Vendors</SelectItem>
-                  {vendors.map((v) => (
-                    <SelectItem key={v.id} value={v.id}>{v.vendor_name}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-            <div className="col-span-2 flex items-center justify-end"><Button className="bg-orange-500 hover:bg-orange-600" onClick={() => queryClient.invalidateQueries({ queryKey: ["/api/vendor-transactions"] })}>Search</Button></div>
+            <div className="col-span-3 flex items-center gap-2"><span>From Date</span><Input type="date" className="w-44" placeholder="Filter Date" /></div>
+            <div className="col-span-3 flex items-center gap-2"><span>To Date</span><Input type="date" className="w-44" placeholder="Filter Date" /></div>
+            <div className="col-span-4 flex items-center gap-2"><span>Vendor</span><Input placeholder="Select Vendor" className="w-full" /></div>
+            <div className="col-span-2 flex items-center justify-end"><Button className="bg-orange-500 hover:bg-orange-600">Search</Button></div>
           </div>
         </CardContent>
       </Card>
@@ -344,14 +247,12 @@ export default function VendorTransactions() {
                 <TableHead>S.No</TableHead>
                 <TableHead>Date</TableHead>
                 <TableHead>Vendor</TableHead>
-                <TableHead>Type</TableHead>
                 <TableHead>Credit(₹)</TableHead>
                 <TableHead>Debit(₹)</TableHead>
-                <TableHead>Mode</TableHead>
                 <TableHead>By</TableHead>
                 <TableHead>Description</TableHead>
                 <TableHead>Action</TableHead>
-                <TableHead>User Log</TableHead>
+                <TableHead>User Log Details</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -369,66 +270,21 @@ export default function VendorTransactions() {
                     <TableCell><Skeleton className="h-4 w-12" /></TableCell>
                   </TableRow>
                 ))
-              ) : transactions.length === 0 ? (
-                <TableRow>
-                  <TableCell colSpan={11} className="text-center h-24 text-muted-foreground">
-                    No transactions found
-                  </TableCell>
-                </TableRow>
               ) : (
                 transactions.map((t, idx) => (
-                  <TableRow key={t?.id}>
+                  <TableRow key={t.id}>
                     <TableCell>{idx + 1}</TableCell>
-                    <TableCell className="whitespace-nowrap">{t?.transactionDate || t?.transaction_date || "-"}</TableCell>
+                    <TableCell>{t.transaction_date || ""}</TableCell>
+                    <TableCell>{t.vendors?.vendor_name || vendors.find((v) => v.id === t.vendor_id)?.vendor_name || t.vendor_id}</TableCell>
+                    <TableCell>{t.transaction_type === 'Credit' ? t.amount : '-'}</TableCell>
+                    <TableCell>{t.transaction_type === 'Debit' ? t.amount : '-'}</TableCell>
+                    <TableCell>{t.payment_mode || '-'}</TableCell>
+                    <TableCell className="max-w-md truncate">{t.description}</TableCell>
                     <TableCell>
-                      {(() => {
-                        if (t?.vendors?.vendor_name && t.vendors.vendor_name !== 'Unknown Vendor') {
-                          return t.vendors.vendor_name;
-                        }
-                        const vId = t?.vendorId || t?.vendor_id;
-                        if (vId) {
-                          const v = vendors.find((v: any) => String(v.id) === String(vId));
-                          if (v) return v.vendor_name;
-                        }
-                        return 'Unknown Vendor';
-                      })()}
+                      <Button variant="ghost" size="icon" onClick={() => handleEdit(t)}>Edit</Button>
+                      <Button variant="ghost" size="icon" onClick={() => handleDelete(t.id)}>Delete</Button>
                     </TableCell>
-                    <TableCell>{t?.transactionType || t?.transaction_type || "-"}</TableCell>
-                    <TableCell className="text-green-600 font-medium">{(t?.transactionType || t?.transaction_type) === 'Credit' ? (t?.amount || "0") : '-'}</TableCell>
-                    <TableCell className="text-red-600 font-medium">{(t?.transactionType || t?.transaction_type) === 'Debit' ? (t?.amount || "0") : '-'}</TableCell>
-                    <TableCell>{t?.paymentMode || t?.payment_mode || '-'}</TableCell>
-                    <TableCell>
-                      {(() => {
-                        // 1. Try server-resolved name (now more reliable)
-                        const sname = t?.employees?.employee_name;
-                        if (sname && sname !== 'Unknown' && sname !== 'undefined' && sname !== 'null') {
-                          return sname;
-                        }
-
-                        // 2. Local lookup by employee identifier
-                        const rawId = t?.employeeId || t?.employee_id;
-                        if (rawId && rawId !== 'undefined' && rawId !== 'null') {
-                          // Try ID lookup
-                          const found = employees.find((e: any) => String(e.id || e._id) === String(rawId));
-                          if (found) return found.employee_name || found.employeeName;
-
-                          // If rawId is actually a name (legacy), use it directly
-                          if (String(rawId).length > 2 && !String(rawId).includes(':')) return rawId;
-                        }
-
-                        return '-';
-                      })()}
-                    </TableCell>
-                    <TableCell>{t?.description || '-'}</TableCell>
-                    <TableCell>
-                      <div className="flex items-center gap-1">
-                        <Button variant="ghost" size="sm" onClick={() => handleEdit(t)}>Edit</Button>
-                        <Button variant="ghost" size="sm" className="text-red-500" onClick={() => handleDelete(t?.id)}>Del</Button>
-                      </div>
-                    </TableCell>
-                    <TableCell className="text-[10px] text-muted-foreground">
-                      {t?.createdAt ? new Date(t.createdAt).toLocaleString() : '-'}
-                    </TableCell>
+                    <TableCell>-</TableCell>
                   </TableRow>
                 ))
               )}

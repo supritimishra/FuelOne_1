@@ -1,213 +1,414 @@
-import { useEffect, useState, useCallback } from "react";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { Download, Users, CheckCircle, XCircle } from "lucide-react";
-import { Input } from "@/components/ui/input";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { useReportDateRange } from "@/hooks/useDateRange";
 
-type Row = {
-  date: string;
-  employee_id: string;
-  name: string;
-  role?: string | null;
-  entries: number;
-  total_quantity: number;
-};
+import { useState, useEffect } from "react";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Card, CardContent } from "@/components/ui/card";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
+import { toast } from "@/hooks/use-toast";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogFooter
+} from "@/components/ui/dialog";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import { Plus, Save, Search, ArrowLeft } from "lucide-react";
+
+// Types
+interface Employee {
+  id: string;
+  employeeName: string;
+  designation?: string;
+  employee_name?: string; // fallback
+}
+
+interface DutyShift {
+  id: string;
+  shiftName: string;
+}
+
+interface AttendanceRecord {
+  employeeId: string;
+  status: "PRESENT" | "ABSENT" | "HALF-DAY" | "NO DUTY";
+  shiftId?: string;
+  notes?: string;
+  type?: string;
+}
 
 export default function AttendanceReport() {
-  // Use standardized date range hook with 1 year default
-  const { fromDate, toDate, setFromDate, setToDate, isValidRange } = useReportDateRange('LAST_12_MONTHS');
-  
-  const [employeeId, setEmployeeId] = useState<string>("ALL");
-  const [rows, setRows] = useState<Row[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [employees, setEmployees] = useState<any[]>([]);
-  const [errorMsg, setErrorMsg] = useState<string>("");
+  const queryClient = useQueryClient();
+  const [view, setView] = useState<"LIST" | "ADD">("LIST");
+  const [selectedDate, setSelectedDate] = useState<string | null>(null);
 
-  useEffect(() => { fetchEmployees(); }, []);
-  const fetchData = useCallback(async () => {
-    setLoading(true);
-    setErrorMsg("");
-    
-    // Validate date range
-    if (!isValidRange) {
-      setErrorMsg("Please select a valid date range");
-      setLoading(false);
-      return;
-    }
-    
-    try {
-      const params = new URLSearchParams();
-      if (fromDate) params.append('from_date', fromDate);
-      if (toDate) params.append('to_date', toDate);
-      if (employeeId && employeeId !== 'ALL') params.append('employee_id', employeeId);
-      
-      const response = await fetch(`/api/sale-entries?${params.toString()}`, {
-        credentials: 'include'
-      });
-      const result = await response.json();
-      
-      if (result.ok) {
-        const data = result.rows || [];
-        const map = new Map<string, Row>();
-        data.forEach((r: any) => {
-          if (!r.employee_id) return;
-          const key = `${r.sale_date}|${r.employee_id}`;
-          const name = employees.find((e: any) => e.id === r.employee_id)?.employee_name || r.employee_id;
-          const current = map.get(key) || { date: r.sale_date, employee_id: r.employee_id, name, entries: 0, total_quantity: 0 } as Row;
-          current.entries += 1;
-          current.total_quantity += Number(r.quantity || 0);
-          map.set(key, current);
-        });
-        const arr = Array.from(map.values()).sort((a, b) => a.date.localeCompare(b.date) || a.name.localeCompare(b.name));
-        setRows(arr);
-      } else {
-        setErrorMsg(result.error || "Failed to load attendance");
-        setRows([]);
+  // ADD View State
+  const [attendanceDate, setAttendanceDate] = useState(new Date().toISOString().slice(0, 10));
+  const [rows, setRows] = useState<Record<string, AttendanceRecord>>({});
+
+  // LIST View State
+  const [fromDate, setFromDate] = useState("");
+  const [toDate, setToDate] = useState("");
+
+  // Fetch Master Data
+  const { data: employees = [] } = useQuery<Employee[]>({
+    queryKey: ["/api/employees"],
+    queryFn: async () => {
+      const res = await fetch("/api/employees");
+      const d = await res.json();
+      const all: Employee[] = d.success ? d.data : [];
+      return all;
+    },
+  });
+
+  const { data: shifts = [] } = useQuery<DutyShift[]>({
+    queryKey: ["/api/duty-shifts"],
+    queryFn: async () => {
+      try {
+        const res = await fetch("/api/duty-shifts");
+        const d = await res.json();
+        if (d.success && d.data && d.data.length > 0) {
+          return d.data;
+        }
+        // Fallback
+        return [{ id: "S-1", shiftName: "S-1" }, { id: "S-2", shiftName: "S-2" }, { id: "General", shiftName: "General" }];
+      } catch (e) {
+        return [{ id: "S-1", shiftName: "S-1" }, { id: "S-2", shiftName: "S-2" }, { id: "General", shiftName: "General" }];
       }
-    } catch (err: any) {
-      setErrorMsg(err?.message || "Failed to load attendance");
-      setRows([]);
-    }
-    
-    setLoading(false);
-  }, [fromDate, toDate, employeeId, employees, isValidRange]);
+    },
+  });
 
-  useEffect(() => { 
-    if (fromDate && toDate) {
-      fetchData();
-    }
-  }, [fromDate, toDate, employeeId, fetchData]);
+  // Fetch List Data
+  const { data: attendanceList = [] } = useQuery<any[]>({
+    queryKey: ["/api/attendance/list", fromDate, toDate],
+    queryFn: async () => {
+      const qs = new URLSearchParams();
+      if (fromDate) qs.set("from", fromDate);
+      if (toDate) qs.set("to", toDate);
+      const res = await fetch(`/api/attendance/list?${qs}`);
+      const d = await res.json();
+      return d.success ? d.data : [];
+    },
+    enabled: view === "LIST"
+  });
 
-  const fetchEmployees = async () => {
-    try {
-      const response = await fetch('/api/employees', {
-        credentials: 'include'
+  // Fetch Details Data for Modal
+  const { data: dailyDetails = [], isLoading: isDetailsLoading } = useQuery({
+    queryKey: ["/api/attendance/details", selectedDate],
+    queryFn: async () => {
+      if (!selectedDate) return [];
+      const res = await fetch(`/api/attendance/details?date=${selectedDate}`);
+      const d = await res.json();
+      return d.success ? d.data : [];
+    },
+    enabled: !!selectedDate
+  });
+
+  // Initialize form rows when employees load or view changes
+  useEffect(() => {
+    if (view === "ADD" && employees.length > 0) {
+      const newRows: Record<string, AttendanceRecord> = {};
+      employees.forEach(e => {
+        newRows[e.id] = {
+          employeeId: e.id,
+          status: "PRESENT", // Default
+          shiftId: "S-1",
+          notes: "",
+          type: "Regular"
+        };
       });
-      const result = await response.json();
-      if (result.ok) {
-        setEmployees(result.rows || []);
-      }
-    } catch (err) {
-      console.error('Failed to fetch employees:', err);
+      setRows(prev => Object.keys(prev).length === 0 ? newRows : prev);
     }
+  }, [view, employees]);
+
+  const bulkMutation = useMutation({
+    mutationFn: async (payload: any[]) => {
+      const res = await fetch("/api/attendance/bulk", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      });
+      const d = await res.json();
+      if (!d.success) throw new Error(d.error);
+      return d;
+    },
+    onSuccess: () => {
+      toast({ title: "Saved", description: "Attendance saved successfully" });
+      setView("LIST");
+      queryClient.invalidateQueries({ queryKey: ["/api/attendance/list"] });
+    },
+    onError: (e: any) => toast({ variant: "destructive", title: "Error", description: e.message })
+  });
+
+  const handleSave = () => {
+    const payload = Object.values(rows).map(r => ({
+      attendanceDate,
+      employeeId: r.employeeId,
+      status: r.status,
+      shiftId: r.shiftId || "S-1",
+      notes: r.notes,
+      type: r.type || "Regular"
+    }));
+    bulkMutation.mutate(payload);
   };
 
-  const totalEmployees = new Set(rows.map(r => r.employee_id)).size;
-  const presentCount = totalEmployees; // presence inferred by activity
-  const attendanceRate = totalEmployees > 0 ? 100 : 0;
-
-  const exportCsv = () => {
-    const header = ["Date", "Employee", "Entries", "Total Qty (L)"];
-    const body = rows.map(r => [r.date, r.name, r.entries, r.total_quantity]);
-    const csv = [header, ...body].map(r => r.join(",")).join("\n");
-    const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = `attendance_${fromDate}_to_${toDate}.csv`;
-    a.click();
-    URL.revokeObjectURL(url);
+  const updateRow = (empId: string, field: keyof AttendanceRecord, value: any) => {
+    setRows(prev => ({
+      ...prev,
+      [empId]: { ...prev[empId], [field]: value }
+    }));
   };
 
-  return (
-    <div className="space-y-6">
-      <div className="flex items-center justify-between">
-        <h1 className="text-3xl font-bold text-foreground">Attendance Report</h1>
-        <div className="flex items-center gap-2">
-          <Input type="date" value={fromDate} onChange={(e) => setFromDate(e.target.value)} />
-          <span className="text-sm text-muted-foreground">to</span>
-          <Input type="date" value={toDate} onChange={(e) => setToDate(e.target.value)} />
-          <Select value={employeeId} onValueChange={setEmployeeId}>
-            <SelectTrigger className="w-[200px]"><SelectValue placeholder="All Employees" /></SelectTrigger>
-            <SelectContent>
-              <SelectItem value="ALL">All Employees</SelectItem>
-              {employees.map((e: any) => (<SelectItem key={e.id} value={e.id}>{e.employee_name}</SelectItem>))}
-            </SelectContent>
-          </Select>
-          <Button variant="secondary" onClick={exportCsv}><Download className="h-4 w-4 mr-1" /> Export</Button>
+  if (view === "LIST") {
+    return (
+      <div className="space-y-4">
+        {/* Header Section */}
+        <div className="flex justify-between items-center bg-white p-4 rounded shadow-sm border">
+          <h1 className="text-xl font-bold flex items-center gap-2 text-gray-800">
+            Dashboard &gt; View Staff Attendance
+          </h1>
+          <Button className="bg-[#f97316] hover:bg-[#ea580c] text-white" onClick={() => setView("ADD")}>
+            <Plus className="w-4 h-4 mr-2" /> Add New
+          </Button>
         </div>
-      </div>
 
-      <div className="grid gap-4 md:grid-cols-3">
+        {/* Filter Section */}
         <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Employees Active</CardTitle>
-            <Users className="h-4 w-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">{totalEmployees}</div>
+          <CardContent className="p-4 flex flex-col md:flex-row gap-4 items-end">
+            <div className="flex flex-col gap-1">
+              <span className="text-sm font-bold">From Date</span>
+              <Input type="date" value={fromDate} onChange={e => setFromDate(e.target.value)} />
+            </div>
+            <div className="flex flex-col gap-1">
+              <span className="text-sm font-bold">To Date</span>
+              <Input type="date" value={toDate} onChange={e => setToDate(e.target.value)} />
+            </div>
+            <Button className="bg-[#f97316] hover:bg-[#ea580c] text-white">
+              <Search className="w-4 h-4 mr-2" /> Search
+            </Button>
           </CardContent>
         </Card>
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Present Rate</CardTitle>
-            <CheckCircle className="h-4 w-4 text-green-500" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold text-green-600">{attendanceRate}%</div>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Total Entries</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">{rows.reduce((s, r) => s + r.entries, 0)}</div>
-          </CardContent>
-        </Card>
-      </div>
 
-      <Card>
-        <CardHeader>
-          <CardTitle>Daily Attendance (inferred from sales activity)</CardTitle>
-        </CardHeader>
-        <CardContent>
-          {errorMsg ? (
-            <div className="text-sm text-destructive">{errorMsg}</div>
-          ) : loading ? (
-            <div className="text-sm text-muted-foreground">Loading...</div>
-          ) : (
+        {/* List Table */}
+        <Card>
+          <div className="p-4 border-b flex justify-between">
+            <div className="flex items-center gap-2">
+              Show <Select defaultValue="All"><SelectTrigger className="w-20"><SelectValue /></SelectTrigger><SelectContent><SelectItem value="All">All</SelectItem></SelectContent></Select>
+            </div>
+          </div>
+          <Table>
+            <TableHeader className="bg-gray-100">
+              <TableRow>
+                <TableHead>S.No</TableHead>
+                <TableHead>Date</TableHead>
+                <TableHead className="text-center">Total Presents</TableHead>
+                <TableHead className="text-center">Total Absents</TableHead>
+                <TableHead>Action</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {attendanceList.length === 0 ? (
+                <TableRow><TableCell colSpan={5} className="text-center p-4">No data available in table</TableCell></TableRow>
+              ) : (
+                attendanceList.map((item, idx) => (
+                  <TableRow key={idx}>
+                    <TableCell>{idx + 1}</TableCell>
+                    <TableCell>{new Date(item.date).toLocaleDateString()}</TableCell>
+                    <TableCell className="text-center font-bold text-green-600">{item.totalPresents}</TableCell>
+                    <TableCell className="text-center font-bold text-red-600">{item.totalAbsents}</TableCell>
+                    <TableCell>
+                      <Button variant="outline" size="sm" onClick={() => setSelectedDate(item.date)}>View</Button>
+                    </TableCell>
+                  </TableRow>
+                ))
+              )}
+            </TableBody>
+          </Table>
+          <div className="p-4 text-sm text-gray-500">
+            Showing {attendanceList.length} of {attendanceList.length} entries
+          </div>
+        </Card>
+
+        {/* View Details Modal */}
+        <Dialog open={!!selectedDate} onOpenChange={(open) => !open && setSelectedDate(null)}>
+          <DialogContent className="max-w-4xl max-h-[80vh] overflow-y-auto bg-white">
+            <DialogHeader>
+              <DialogTitle>Attendance Details - {selectedDate ? new Date(selectedDate).toLocaleDateString() : ""}</DialogTitle>
+            </DialogHeader>
             <Table>
               <TableHeader>
                 <TableRow>
-                  <TableHead>Date</TableHead>
                   <TableHead>Employee</TableHead>
-                  <TableHead>Entries</TableHead>
-                  <TableHead>Total Qty (L)</TableHead>
+                  <TableHead>Designation</TableHead>
                   <TableHead>Status</TableHead>
+                  <TableHead>Shift</TableHead>
+                  <TableHead>Type</TableHead>
+                  <TableHead>Notes</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {rows.map((r, idx) => (
-                  <TableRow key={`${r.date}-${r.employee_id}-${idx}`}>
-                    <TableCell>{new Date(r.date).toLocaleDateString()}</TableCell>
-                    <TableCell className="font-medium">{r.name}</TableCell>
-                    <TableCell>{r.entries}</TableCell>
-                    <TableCell>{r.total_quantity.toLocaleString("en-IN")}</TableCell>
-                    <TableCell>
-                      <span className={`px-2 py-1 rounded-full text-xs ${r.entries > 0 ? "bg-green-100 text-green-700" : "bg-red-100 text-red-700"}`}>
-                        {r.entries > 0 ? "Present" : "Absent"}
-                      </span>
-                    </TableCell>
-                  </TableRow>
-                ))}
-                {rows.length === 0 && (
-                  <TableRow>
-                    <TableCell colSpan={5} className="text-center text-muted-foreground">
-                      <div className="py-4">
-                        <p>No attendance data found for the selected date range.</p>
-                        <p className="text-sm mt-2">Try selecting a broader date range or check if there are any sale entries with employee data.</p>
-                        <p className="text-xs mt-1 text-blue-600">Available data dates: 2024-01-14, 2025-10-11, 2025-10-13</p>
-                      </div>
-                    </TableCell>
-                  </TableRow>
+                {isDetailsLoading ? (
+                  <TableRow><TableCell colSpan={6} className="text-center">Loading...</TableCell></TableRow>
+                ) : !dailyDetails || dailyDetails.length === 0 ? (
+                  <TableRow><TableCell colSpan={6} className="text-center">No records found</TableCell></TableRow>
+                ) : (
+                  dailyDetails.map((detail: any, idx: number) => (
+                    <TableRow key={idx}>
+                      <TableCell className="font-medium">{detail.employeeName}</TableCell>
+                      <TableCell>{detail.designation || '-'}</TableCell>
+                      <TableCell>
+                        <span className={`px-2 py-1 rounded text-xs font-bold ${detail.status === 'PRESENT' ? 'bg-green-100 text-green-700' :
+                          detail.status === 'ABSENT' ? 'bg-red-100 text-red-700' :
+                            detail.status === 'HALF-DAY' ? 'bg-blue-100 text-blue-700' :
+                              'bg-gray-100 text-gray-700'
+                          }`}>
+                          {detail.status}
+                        </span>
+                      </TableCell>
+                      <TableCell>{detail.shiftId || '-'}</TableCell>
+                      <TableCell>{detail.type || '-'}</TableCell>
+                      <TableCell>{detail.notes || '-'}</TableCell>
+                    </TableRow>
+                  ))
                 )}
               </TableBody>
             </Table>
-          )}
+            <DialogFooter>
+              <Button onClick={() => setSelectedDate(null)}>Close</Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+      </div>
+    );
+  }
+
+  // ADD VIEW
+  return (
+    <div className="space-y-4">
+      {/* Header */}
+      <div className="bg-blue-600 p-4 rounded-lg text-white flex justify-between items-center shadow-lg">
+        <div className="flex items-center gap-4">
+          <div className="flex flex-col">
+            <span className="text-xs font-bold opacity-80 uppercase">Date</span>
+            <Input
+              type="date"
+              value={attendanceDate}
+              onChange={e => setAttendanceDate(e.target.value)}
+              className="text-black bg-white w-48 font-bold h-10"
+            />
+          </div>
+        </div>
+        <div className="flex gap-4">
+          <Button className="bg-[#84cc16] hover:bg-[#65a30d] text-white font-bold px-6 shadow-md" onClick={handleSave}>
+            <Save className="w-4 h-4 mr-2" /> SAVE
+          </Button>
+          <Button variant="secondary" className="bg-white text-blue-600 hover:bg-gray-100 font-bold" onClick={() => setView("LIST")}>
+            <ArrowLeft className="w-4 h-4 mr-2" /> Back
+          </Button>
+        </div>
+      </div>
+
+      {/* Main Table */}
+      <Card className="border-t-4 border-t-blue-500 shadow-md">
+        <CardContent className="p-0">
+          <Table>
+            <TableHeader className="bg-gray-50">
+              <TableRow>
+                <TableHead className="w-[50px] font-bold text-gray-700">#</TableHead>
+                <TableHead className="font-bold text-gray-700">Emp Name</TableHead>
+                <TableHead className="font-bold text-gray-700">Designation</TableHead>
+                <TableHead className="w-[350px] font-bold text-gray-700">Attendance</TableHead>
+                <TableHead className="font-bold text-gray-700">Shift</TableHead>
+                <TableHead className="font-bold text-gray-700">Type</TableHead>
+                <TableHead className="font-bold text-gray-700">Remarks</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {employees.map((emp, idx) => {
+                const row = rows[emp.id] || {};
+                return (
+                  <TableRow key={emp.id} className="hover:bg-gray-50 transition-colors">
+                    <TableCell>{idx + 1}</TableCell>
+                    <TableCell className="font-medium text-gray-900">{emp.employeeName || emp.employee_name}</TableCell>
+                    <TableCell className="text-gray-500">{emp.designation || "N/A"}</TableCell>
+                    <TableCell>
+                      <div className="flex gap-2">
+                        {/* Custom Radio Button Styling */}
+                        {[
+                          { val: "PRESENT", label: "PRESENT", color: "peer-checked:bg-green-500 peer-checked:text-white border-green-200 text-green-600 hover:bg-green-50" },
+                          { val: "ABSENT", label: "ABSENT", color: "peer-checked:bg-red-500 peer-checked:text-white border-red-200 text-red-600 hover:bg-red-50" },
+                          { val: "HALF-DAY", label: "HALF-DAY", color: "peer-checked:bg-blue-500 peer-checked:text-white border-blue-200 text-blue-600 hover:bg-blue-50" },
+                          { val: "NO DUTY", label: "NO DUTY", color: "peer-checked:bg-gray-500 peer-checked:text-white border-gray-200 text-gray-600 hover:bg-gray-50" }
+                        ].map((opt) => (
+                          <label key={opt.val} className="cursor-pointer relative">
+                            <input
+                              type="radio"
+                              name={`status-${emp.id}`}
+                              value={opt.val}
+                              checked={row.status === opt.val}
+                              onChange={() => updateRow(emp.id, "status", opt.val)}
+                              className="peer sr-only"
+                            />
+                            <div className={`px-3 py-1.5 rounded-md border text-[10px] font-bold uppercase tracking-wide transition-all shadow-sm ${opt.color}`}>
+                              {opt.label}
+                            </div>
+                          </label>
+                        ))}
+                      </div>
+                    </TableCell>
+                    <TableCell>
+                      <Select
+                        value={row.shiftId}
+                        onValueChange={(v) => updateRow(emp.id, "shiftId", v)}
+                      >
+                        <SelectTrigger className="w-[120px] bg-white border-gray-200">
+                          <SelectValue placeholder="- Select -" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {shifts.map(s => <SelectItem key={s.id} value={s.id}>{s.shiftName}</SelectItem>)}
+                        </SelectContent>
+                      </Select>
+                    </TableCell>
+                    <TableCell>
+                      <Select
+                        value={row.type}
+                        onValueChange={(v) => updateRow(emp.id, "type", v)}
+                      >
+                        <SelectTrigger className="w-[120px] bg-white border-gray-200">
+                          <SelectValue placeholder="- Select -" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="Regular">Regular</SelectItem>
+                          <SelectItem value="Overtime">Overtime</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </TableCell>
+                    <TableCell>
+                      <Input
+                        placeholder=""
+                        value={row.notes || ""}
+                        onChange={e => updateRow(emp.id, "notes", e.target.value)}
+                        className="bg-white border-gray-200"
+                      />
+                    </TableCell>
+                  </TableRow>
+                );
+              })}
+            </TableBody>
+          </Table>
         </CardContent>
       </Card>
     </div>

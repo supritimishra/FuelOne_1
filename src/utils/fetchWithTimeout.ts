@@ -12,11 +12,8 @@ export async function fetchWithTimeout(
     controller.abort();
   }, timeoutMs);
 
-  const API_BASE = (import.meta as any)?.env?.VITE_API_URL || '';
-  const fullUrl = url.startsWith('http') ? url : `${API_BASE}${url}`;
-
   try {
-    const response = await fetch(fullUrl, {
+    const response = await fetch(url, {
       ...options,
       signal: controller.signal,
     });

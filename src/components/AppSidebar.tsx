@@ -148,6 +148,7 @@ export function AppSidebar() {
 
   // Build Master section - Temporarily visible to all users for testing
   const masterItems: SidebarItem[] = [
+
     { title: "Fuel Products", url: "/master/fuel-products", icon: Fuel, featureKey: "fuel_products" },
     { title: "Lubricants", url: "/master/lubricants", icon: Droplet, featureKey: "lubricants" },
     { title: "Credit Customer", url: "/master/credit-customer", icon: Users, featureKey: "credit_customers" },

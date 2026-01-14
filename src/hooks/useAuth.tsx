@@ -31,20 +31,28 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const fetchUser = async () => {
     try {
+      console.log('🔄 [AUTH] Fetching user profile...');
+      
       // Since cookies are HTTP-only, we can't read them directly
       // The /api/auth/me endpoint will handle authentication via cookies
       const response = await fetchJSON('/api/auth/me');
-
+      
       if (response.ok) {
         const userData = await response.json();
+        console.log('✅ [AUTH] User data received:', {
+          email: userData.email,
+          organizationName: userData.tenant?.organizationName,
+          tenantId: userData.tenant?.id
+        });
         setUser(userData);
         setOrganizationName(userData.tenant?.organizationName || null);
       } else {
+        console.log('❌ [AUTH] Failed to fetch user data, status:', response.status);
         setUser(null);
         setOrganizationName(null);
       }
     } catch (error) {
-      console.error('Error fetching user:', error);
+      console.error('❌ [AUTH] Error fetching user:', error);
       setUser(null);
       setOrganizationName(null);
     } finally {
@@ -64,19 +72,19 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const signOut = async () => {
     try {
       await fetchJSON('/api/auth/logout', { method: 'POST' });
-
+      
       setUser(null);
       setOrganizationName(null);
-
+      
       // Clear cookies manually
       document.cookie.split(";").forEach(c => {
         document.cookie = c.replace(/^ +/, "").replace(/=.*/, "=;expires=" + new Date().toUTCString() + ";path=/");
       });
-
+      
       // Clear storage
       localStorage.clear();
       sessionStorage.clear();
-
+      
       // Force redirect
       window.location.href = "/login";
     } catch (error) {

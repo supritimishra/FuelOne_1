@@ -43,27 +43,27 @@ export default function Auth() {
 
     try {
       // Clear any existing session data before login
-      const apiBase = (import.meta as any)?.env?.VITE_API_URL || '';
-
+      console.log('🧹 [AUTH] Clearing existing session data...');
+      
       // Call logout endpoint to clear server-side session
       try {
-        await fetch(`${apiBase}/api/auth/logout`, {
+        await fetch('/api/auth/logout', { 
           method: 'POST',
           credentials: 'include'
         });
       } catch (error) {
-        // Silently fail logout
+        console.log('Logout call failed (expected if not logged in):', error);
       }
-
+      
       // Clear client-side data
       document.cookie.split(";").forEach(c => {
         document.cookie = c.replace(/^ +/, "").replace(/=.*/, "=;expires=" + new Date().toUTCString() + ";path=/");
       });
       localStorage.clear();
       sessionStorage.clear();
-
+      
       // Try backend API login first
-      const response = await fetch(`${apiBase}/api/auth/login`, {
+      const response = await fetch('/api/auth/login', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         credentials: 'include',
@@ -72,17 +72,18 @@ export default function Auth() {
 
       if (response.ok) {
         const data = await response.json();
+        console.log('Login successful:', email);
         toast({
           title: "Login successful",
           description: `Welcome back, ${data.user?.fullName || email}!`,
         });
-
+        
         // Wait for browser to store cookie before fetching user data
         await new Promise(resolve => setTimeout(resolve, 200));
-
+        
         // Refresh user data to update auth context
         await refreshUser();
-
+        
         // Navigate to dashboard
         navigate("/");
         return;
@@ -109,7 +110,7 @@ export default function Auth() {
 
   const handleSignup = async (e: React.FormEvent) => {
     e.preventDefault();
-
+    
     if (password !== confirmPassword) {
       toast({
         variant: "destructive",
@@ -122,8 +123,7 @@ export default function Auth() {
     setLoading(true);
 
     try {
-      const apiBase = (import.meta as any)?.env?.VITE_API_URL || '';
-      const response = await fetch(`${apiBase}/api/auth/register`, {
+      const response = await fetch('/api/auth/register', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         credentials: 'include',
@@ -151,7 +151,7 @@ export default function Auth() {
         description: "An unexpected error occurred. Please try again.",
       });
     }
-
+    
     setLoading(false);
   };
 
@@ -160,8 +160,7 @@ export default function Auth() {
     setResetLoading(true);
 
     try {
-      const apiBase = (import.meta as any)?.env?.VITE_API_URL || '';
-      const response = await fetch(`${apiBase}/api/auth/reset-password-request`, {
+      const response = await fetch('/api/auth/reset-password-request', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ email: resetEmail }),
@@ -191,7 +190,7 @@ export default function Auth() {
         description: "An unexpected error occurred. Please try again.",
       });
     }
-
+    
     setResetLoading(false);
   };
 
@@ -200,7 +199,7 @@ export default function Auth() {
       <Card className="w-full max-w-md">
         <CardHeader className="text-center">
           <div className="flex justify-center mb-4">
-            <img src="/brand-logo.png" alt="Petrol Pump Logo" className="h-14 w-auto" onError={(e) => { (e.currentTarget as HTMLImageElement).style.display = 'none'; }} />
+            <img src="/brand-logo.png" alt="Petrol Pump Logo" className="h-14 w-auto" onError={(e)=>{(e.currentTarget as HTMLImageElement).style.display='none';}} />
           </div>
           <CardTitle className="text-2xl">Petrol Pump Management</CardTitle>
           <CardDescription>Multi-Tenant Management System</CardDescription>
@@ -211,7 +210,7 @@ export default function Auth() {
               <TabsTrigger value="login" data-testid="tab-login">Login</TabsTrigger>
               <TabsTrigger value="signup" data-testid="tab-signup">Sign Up</TabsTrigger>
             </TabsList>
-
+            
             <TabsContent value="login">
               <form onSubmit={handleLogin} className="space-y-4">
                 {/* Login Method Toggle */}
@@ -235,7 +234,7 @@ export default function Auth() {
                     Username
                   </Button>
                 </div>
-
+                
                 <div className="space-y-2">
                   <Label htmlFor="login-email">
                     {loginMethod === 'email' ? 'Email' : 'Username'}
@@ -299,7 +298,7 @@ export default function Auth() {
                 </Dialog>
               </form>
             </TabsContent>
-
+            
             <TabsContent value="signup">
               <form onSubmit={handleSignup} className="space-y-4">
                 <div className="space-y-2">

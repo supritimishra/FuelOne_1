@@ -1,42 +1,56 @@
 
-import { pool } from '../server/db.js';
-import pg from 'pg';
+import mongoose from 'mongoose';
+import { Nozzle, Tank } from '../server/models.js';
+import dotenv from 'dotenv';
+import path from 'path';
 
-async function main() {
-    console.log('🔍 Checking nozzles...');
+// Load environment variables
+dotenv.config({ path: path.resolve(process.cwd(), '.local.env') });
 
-    const tenantRes = await pool.query(`SELECT id, organization_name, connection_string FROM tenants WHERE status = 'active'`);
-
-    for (const tenant of tenantRes.rows) {
-        console.log(`\nTenant: ${tenant.organization_name} (${tenant.id})`);
-        const tenantPool = new pg.Pool({
-            connectionString: tenant.connection_string,
-            ssl: { rejectUnauthorized: false }
-        });
-
-        try {
-            const res = await tenantPool.query(`SELECT id, nozzle_number, is_active, tank_id, pump_station, fuel_product_id, created_at FROM nozzles`);
-            if (res.rows.length === 0) {
-                console.log(`  ⚠️ No nozzles found.`);
-            } else {
-                console.log(`  ✅ Found ${res.rows.length} nozzles:`);
-                res.rows.forEach(r => {
-                    console.log(`    - Nozzle ${r.nozzle_number} (Active: ${r.is_active}, Tank: ${r.tank_id}, Product: ${r.fuel_product_id}) Created: ${r.created_at}`);
-                });
-            }
-
-            // Also check tanks
-            const tankRes = await tenantPool.query(`SELECT id, tank_number, fuel_product_id FROM tanks`);
-            console.log(`  Found ${tankRes.rows.length} tanks:`);
-            tankRes.rows.forEach(r => console.log(`    - Tank ${r.tank_number} (Product: ${r.fuel_product_id})`));
-
-        } catch (e) {
-            console.error(`  ❌ Failed: ${(e as Error).message}`);
-        } finally {
-            await tenantPool.end();
+async function checkNozzles() {
+    try {
+        const mongoUri = process.env.MONGODB_URI;
+        if (!mongoUri) {
+            throw new Error("MONGODB_URI is not set in .local.env");
         }
+
+        console.log(`Connecting to MongoDB...`);
+        await mongoose.connect(mongoUri);
+
+        const nozzles = await Nozzle.find({});
+        console.log(`Found ${nozzles.length} nozzles.`);
+
+        if (nozzles.length === 0) {
+            console.log("⚠️ No nozzles found! Seeding test data...");
+
+            // Create Tank first
+            const tank = new Tank({
+                _id: new mongoose.Types.ObjectId().toString(),
+                tankNumber: "T-1",
+                fuelProductId: "MS-1", // Placeholder
+                capacity: 20000,
+                currentStock: 5000,
+                isActive: true
+            });
+            await tank.save();
+
+            // Create Nozzle
+            const nozzle = new Nozzle({
+                _id: new mongoose.Types.ObjectId().toString(),
+                nozzleNumber: "N-1",
+                pumpStation: "P1",
+                tankId: tank._id,
+                fuelProductId: "MS-1",
+                isActive: true
+            });
+            await nozzle.save();
+            console.log("✅ Seeded Tank and Nozzle");
+        }
+
+        await mongoose.disconnect();
+    } catch (error) {
+        console.error("Error:", error);
     }
-    await pool.end();
 }
 
-main().catch(console.error);
+checkNozzles();

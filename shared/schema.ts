@@ -189,9 +189,32 @@ export const dutyPay = pgTable("duty_pay", {
   createdAt: timestamp("created_at").defaultNow(),
 });
 
+
 export const insertDutyPaySchema = createInsertSchema(dutyPay).omit({ id: true, createdAt: true });
 export type InsertDutyPay = typeof dutyPay.$inferInsert;
 export type DutyPay = typeof dutyPay.$inferSelect;
+
+export const dutyPayRecords = pgTable("duty_pay_records", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  salaryDate: date("salary_date").notNull(),
+  employeeId: uuid("employee_id").references(() => employees.id),
+  shift: text("shift"),
+  dutySalary: numeric("duty_salary", { precision: 12, scale: 2 }),
+  grossSalary: numeric("gross_salary", { precision: 12, scale: 2 }),
+  pf: numeric("pf", { precision: 12, scale: 2 }),
+  esi: numeric("esi", { precision: 12, scale: 2 }),
+  loanDeduction: numeric("loan_deduction", { precision: 12, scale: 2 }),
+  advanceDeduction: numeric("advance_deduction", { precision: 12, scale: 2 }),
+  businessShortage: numeric("business_shortage", { precision: 12, scale: 2 }),
+  netSalary: numeric("net_salary", { precision: 12, scale: 2 }),
+  payMode: text("pay_mode"),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
+export const insertDutyPayRecordSchema = createInsertSchema(dutyPayRecords).omit({ id: true, createdAt: true });
+export type InsertDutyPayRecord = typeof dutyPayRecords.$inferInsert;
+export type DutyPayRecord = typeof dutyPayRecords.$inferSelect;
+
 
 // Fuel Products Table (aligning with UI requirements)
 export const fuelProducts = pgTable("fuel_products", {
@@ -228,12 +251,13 @@ export type Tank = typeof tanks.$inferSelect;
 export const tankDailyReadings = pgTable("tank_daily_readings", {
   id: uuid("id").primaryKey().defaultRandom(),
   readingDate: date("reading_date").notNull().default(sql`CURRENT_DATE`),
-  tankId: uuid("tank_id").references(() => tanks.id),
+  tankId: text("tank_id"), // Changed from uuid to text to support mock/legacy IDs
   openingStock: numeric("opening_stock", { precision: 12, scale: 3 }),
   stockReceived: numeric("stock_received", { precision: 12, scale: 3 }).default("0"),
   meterSale: numeric("meter_sale", { precision: 12, scale: 3 }).default("0"),
   closingStock: numeric("closing_stock", { precision: 12, scale: 3 }),
   dipReading: numeric("dip_reading", { precision: 12, scale: 3 }),
+  testing: numeric("testing", { precision: 12, scale: 3 }).default("0"),
   variation: numeric("variation", { precision: 12, scale: 3 }),
   notes: text("notes"),
   createdAt: timestamp("created_at").defaultNow(),
@@ -468,6 +492,7 @@ export const expiryItems = pgTable("expiry_items", {
   itemName: text("item_name").notNull(),
   issueDate: date("issue_date"),
   expiryDate: date("expiry_date"),
+  category: text("category"),
   status: text("status").default('Active'),
   createdAt: timestamp("created_at").defaultNow(),
 });
@@ -475,6 +500,18 @@ export const expiryItems = pgTable("expiry_items", {
 export const insertExpiryItemSchema = createInsertSchema(expiryItems).omit({ id: true, createdAt: true });
 export type InsertExpiryItem = typeof expiryItems.$inferInsert;
 export type ExpiryItem = typeof expiryItems.$inferSelect;
+
+export const expiryCategories = pgTable("expiry_categories", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  categoryName: text("category_name").notNull(),
+  description: text("description"),
+  isActive: boolean("is_active").default(true),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
+export const insertExpiryCategorySchema = createInsertSchema(expiryCategories).omit({ id: true, createdAt: true });
+export type InsertExpiryCategory = typeof expiryCategories.$inferInsert;
+export type ExpiryCategory = typeof expiryCategories.$inferSelect;
 
 // Sale Entries Table
 export const saleEntries = pgTable("sale_entries", {
@@ -489,7 +526,7 @@ export const saleEntries = pgTable("sale_entries", {
   quantity: numeric("quantity", { precision: 12, scale: 3 }),
   pricePerUnit: numeric("price_per_unit", { precision: 10, scale: 2 }),
   netSaleAmount: numeric("net_sale_amount", { precision: 12, scale: 2 }),
-  employeeId: uuid("employee_id").references(() => employees.id),
+  employeeId: uuid("employee_id"),
   createdAt: timestamp("created_at").defaultNow(),
   createdBy: uuid("created_by").references(() => users.id),
 });
@@ -512,6 +549,9 @@ export const lubSales = pgTable("lub_sales", {
   description: text("description"),
   saleType: text("sale_type").default('Cash'), // 'Cash' or 'Credit'
   gst: numeric("gst", { precision: 5, scale: 2 }),
+  customerName: text("customer_name"),
+  tinGstNo: text("tin_gst_no"),
+  billNo: text("bill_no"),
   createdAt: timestamp("created_at").defaultNow(),
 });
 
@@ -734,18 +774,15 @@ export type DaySettlement = typeof daySettlements.$inferSelect;
 export const dailySaleRates = pgTable("daily_sale_rates", {
   id: uuid("id").primaryKey().defaultRandom(),
   rateDate: date("rate_date").notNull().default(sql`CURRENT_DATE`),
-  shift: text("shift").notNull().default('S-1'), // 'S-1' or 'S-2'
   fuelProductId: uuid("fuel_product_id").notNull().references(() => fuelProducts.id),
   openRate: numeric("open_rate", { precision: 10, scale: 2 }),
   closeRate: numeric("close_rate", { precision: 10, scale: 2 }),
   variationAmount: numeric("variation_amount", { precision: 10, scale: 2 }),
   createdAt: timestamp("created_at").defaultNow(),
   createdBy: uuid("created_by").references(() => users.id),
-}, (table) => ({
-  unq_daily_rate: uniqueIndex("unq_daily_rate_entry").on(table.rateDate, table.shift, table.fuelProductId),
-}));
+});
 
-export const insertDailySaleRateSchema = createInsertSchema(dailySaleRates).omit({ id: true, createdAt: true, variationAmount: true });
+export const insertDailySaleRateSchema = createInsertSchema(dailySaleRates).omit({ id: true, createdAt: true });
 export type InsertDailySaleRate = typeof dailySaleRates.$inferInsert;
 export type DailySaleRate = typeof dailySaleRates.$inferSelect;
 
@@ -789,7 +826,10 @@ export type TankerSale = typeof tankerSales.$inferSelect;
 export const guestSales = pgTable("guest_sales", {
   id: uuid("id").primaryKey().defaultRandom(),
   saleDate: date("sale_date").notNull().default(sql`CURRENT_DATE`),
+  customerName: text("customer_name"),
   mobileNumber: text("mobile_number"),
+  billNo: text("bill_no"),
+  shift: text("shift"), // 'S-1', 'S-2'
   vehicleNumber: text("vehicle_number"),
   fuelProductId: uuid("fuel_product_id").notNull().references(() => fuelProducts.id),
   quantity: numeric("quantity", { precision: 12, scale: 3 }).notNull(),
@@ -797,6 +837,9 @@ export const guestSales = pgTable("guest_sales", {
   discount: numeric("discount", { precision: 10, scale: 2 }).default("0"),
   paymentMode: text("payment_mode"), // 'Cash', 'UPI', 'Card'
   totalAmount: numeric("total_amount", { precision: 12, scale: 2 }),
+  description: text("description"),
+  employeeId: uuid("employee_id").references(() => employees.id),
+  gstNumber: text("gst_number"),
   createdAt: timestamp("created_at").defaultNow(),
   createdBy: uuid("created_by").references(() => users.id),
 });
@@ -832,7 +875,6 @@ export const vendorTransactions = pgTable("vendor_transactions", {
   amount: numeric("amount", { precision: 12, scale: 2 }).notNull(),
   paymentMode: text("payment_mode"), // 'Cash', 'Bank', 'UPI'
   description: text("description"),
-  employeeId: uuid("employee_id").references(() => employees.id),
   createdAt: timestamp("created_at").defaultNow(),
   createdBy: uuid("created_by").references(() => users.id),
 });
@@ -847,11 +889,8 @@ export const businessTransactions = pgTable("business_transactions", {
   transactionDate: date("transaction_date").notNull().default(sql`CURRENT_DATE`),
   transactionType: text("transaction_type"), // 'Credit', 'Debit'
   partyName: text("party_name").notNull(),
-  effectedParty: text("effected_party"),
-  source: text("source"),
   amount: numeric("amount", { precision: 12, scale: 2 }).notNull(),
   description: text("description"),
-  enteredBy: text("entered_by"),
   createdAt: timestamp("created_at").defaultNow(),
   createdBy: uuid("created_by").references(() => users.id),
 });
@@ -883,6 +922,7 @@ export const attendance = pgTable("attendance", {
   attendanceDate: date("attendance_date").notNull().default(sql`CURRENT_DATE`),
   employeeId: uuid("employee_id").notNull().references(() => employees.id),
   status: text("status"), // 'Present', 'Absent', 'Half Day', 'Leave'
+  type: text("type"),
   shiftId: uuid("shift_id").references(() => dutyShifts.id),
   notes: text("notes"),
   createdAt: timestamp("created_at").defaultNow(),
@@ -965,8 +1005,9 @@ export type PrintTemplate = typeof printTemplates.$inferSelect;
 // Feedback Table
 export const feedback = pgTable("feedback", {
   id: uuid("id").primaryKey().defaultRandom(),
-  name: text("name"),
-  message: text("message").notNull(),
+  mobileNumber: text("mobile_number"),
+  rating: integer("rating"),
+  message: text("message"), // We will treat this as comments
   createdAt: timestamp("created_at").defaultNow(),
   createdBy: uuid("created_by").references(() => users.id),
 });

@@ -43,55 +43,41 @@ type SectionLike = Section | Field; // allow flat field arrays for simple report
 
 const reportFields: Record<string, SectionLike[]> = {
   "All Credit Customers": [
-    {
-      title: 'Credit Parties Summary', fields: [
-        { key: 'from', label: 'From Date', type: 'date' },
-        { key: 'to', label: 'To Date', type: 'date' },
-        { key: 'detailed', label: 'Detailed View', type: 'checkbox' },
-        { key: 'creditDue', label: 'Credit Due View', type: 'checkbox' },
-      ]
-    },
-    {
-      title: 'Day Wise Credit', fields: [
-        { key: 'saleDate', label: 'Sale Date', type: 'date' },
-        { key: 'byGroup', label: 'By Group', type: 'checkbox' },
-        { key: 'shiftWise', label: 'Shift Wise', type: 'checkbox' },
-      ]
-    },
-    {
-      title: 'Month wise Recovery', fields: [
-        { key: 'm_from', label: 'From Date', type: 'date' },
-        { key: 'm_to', label: 'To Date', type: 'date' },
-        { key: 'mode', label: 'Mode' },
-        { key: 'm_shift', label: 'Shift Wise', type: 'checkbox' },
-      ]
-    },
-    {
-      title: 'Indent wise Credit bill', fields: [
-        { key: 'i_from', label: 'From Date', type: 'date' },
-        { key: 'i_to', label: 'To Date', type: 'date' },
-        { key: 'organization', label: 'Organization' },
-        { key: 'vehicle', label: 'Vehicle' },
-      ]
-    },
-    {
-      title: 'Balance', fields: [
-        { key: 'balance', label: 'Customer Balance Report', type: 'label' },
-      ]
-    },
-    {
-      title: 'Credit Limit Crossed Report', fields: [
-        { key: 'cl_label', label: 'Customer Balance Report', type: 'label' },
-        { key: 'cl_from', label: 'From Date', type: 'date' },
-        { key: 'cl_to', label: 'To Date', type: 'date' },
-      ]
-    },
-    {
-      title: 'Vehicle wise Summary', fields: [
-        { key: 'v_from', label: 'From Date', type: 'date' },
-        { key: 'v_to', label: 'To Date', type: 'date' },
-      ]
-    },
+    { title: 'Credit Parties Summary', fields: [
+      { key: 'from', label: 'From Date', type: 'date' },
+      { key: 'to', label: 'To Date', type: 'date' },
+      { key: 'detailed', label: 'Detailed View', type: 'checkbox' },
+      { key: 'creditDue', label: 'Credit Due View', type: 'checkbox' },
+    ] },
+    { title: 'Day Wise Credit', fields: [
+      { key: 'saleDate', label: 'Sale Date', type: 'date' },
+      { key: 'byGroup', label: 'By Group', type: 'checkbox' },
+      { key: 'shiftWise', label: 'Shift Wise', type: 'checkbox' },
+    ] },
+    { title: 'Month wise Recovery', fields: [
+      { key: 'm_from', label: 'From Date', type: 'date' },
+      { key: 'm_to', label: 'To Date', type: 'date' },
+      { key: 'mode', label: 'Mode' },
+      { key: 'm_shift', label: 'Shift Wise', type: 'checkbox' },
+    ] },
+    { title: 'Indent wise Credit bill', fields: [
+      { key: 'i_from', label: 'From Date', type: 'date' },
+      { key: 'i_to', label: 'To Date', type: 'date' },
+      { key: 'organization', label: 'Organization' },
+      { key: 'vehicle', label: 'Vehicle' },
+    ] },
+    { title: 'Balance', fields: [
+      { key: 'balance', label: 'Customer Balance Report', type: 'label' },
+    ] },
+    { title: 'Credit Limit Crossed Report', fields: [
+      { key: 'cl_label', label: 'Customer Balance Report', type: 'label' },
+      { key: 'cl_from', label: 'From Date', type: 'date' },
+      { key: 'cl_to', label: 'To Date', type: 'date' },
+    ] },
+    { title: 'Vehicle wise Summary', fields: [
+      { key: 'v_from', label: 'From Date', type: 'date' },
+      { key: 'v_to', label: 'To Date', type: 'date' },
+    ] },
   ],
   // No separate Credit Parties Summary item in the menu per screenshot
   "Attendance": [
@@ -107,20 +93,16 @@ const reportFields: Record<string, SectionLike[]> = {
     { key: 'party', label: 'Party' },
   ],
   "Bowser Transaction's": [
-    {
-      title: 'Bowser Transactions', fields: [
-        { key: 'from', label: 'From Date', type: 'date' },
-        { key: 'to', label: 'To Date', type: 'date' },
-        { key: 'shift', label: 'Shift Wise' },
-        { key: 'bowser', label: 'Bowser List' },
-      ]
-    },
-    {
-      title: 'Bowser Day Transaction', fields: [
-        { key: 'selectDate', label: 'Select Date', type: 'date' },
-        { key: 'shift', label: 'Shift Wise' },
-      ]
-    },
+    { title: 'Bowser Transactions', fields: [
+      { key: 'from', label: 'From Date', type: 'date' },
+      { key: 'to', label: 'To Date', type: 'date' },
+      { key: 'shift', label: 'Shift Wise' },
+      { key: 'bowser', label: 'Bowser List' },
+    ]},
+    { title: 'Bowser Day Transaction', fields: [
+      { key: 'selectDate', label: 'Select Date', type: 'date' },
+      { key: 'shift', label: 'Shift Wise' },
+    ]},
   ],
   "Customer Account Statement": [
     { key: 'from', label: 'From Date', type: 'date' },
@@ -177,7 +159,6 @@ const reportFields: Record<string, SectionLike[]> = {
   "Purchase": [
     { key: 'from', label: 'From Date', type: 'date' },
     { key: 'to', label: 'To Date', type: 'date' },
-    { key: 'vendor_type', label: 'Vendor Type' },
     { key: 'type', label: 'Type' },
   ],
   "Employee Status": [
@@ -208,7 +189,6 @@ const reportFields: Record<string, SectionLike[]> = {
   "Vendor Transactions": [
     { key: 'from', label: 'From Date', type: 'date' },
     { key: 'to', label: 'To Date', type: 'date' },
-    { key: 'vendor_type', label: 'Vendor Type' },
     { key: 'vendor', label: 'Vendor' },
   ],
   "FeedBack": [
@@ -226,7 +206,7 @@ const reportFields: Record<string, SectionLike[]> = {
 export default function Reports() {
   // Use standardized date range hook with 12 months default
   const { fromDate, toDate, setFromDate, setToDate, isValidRange } = useReportDateRange('LAST_12_MONTHS');
-
+  
   const [selected, setSelected] = useState<string | null>(REPORTS[0]);
   const sections = useMemo(() => {
     const raw = reportFields[selected as string];
@@ -248,9 +228,8 @@ export default function Reports() {
   const [products, setProducts] = useState<any[]>([]);
   const [bowsers, setBowsers] = useState<any[]>([]);
   const [expenseTypes, setExpenseTypes] = useState<any[]>([]);
-  const vendorTypes = ['All', 'Liquid', 'Lubricant', 'Other'];
-  const businessTypes = ['Bank', 'Capital', 'Cash', 'Creditor', 'Owner', 'Tanker'];
-  const swipeModes = ['Cash', 'Bank', 'Petrol', 'Swipe'];
+  const businessTypes = ['Bank','Capital','Cash','Creditor','Owner','Tanker'];
+  const swipeModes = ['Cash','Bank','Petrol','Swipe'];
   const taxOptions = [
     'GST Purchases',
     'GST Sales',
@@ -261,12 +240,6 @@ export default function Reports() {
   ];
 
   const setVal = (k: string, v: any) => setValues(prev => ({ ...prev, [k]: v }));
-
-  // Clear report when switching sections or filters
-  useEffect(() => {
-    setReportRows(null);
-    setReportColumns(null);
-  }, [selected, values]);
 
   useEffect(() => {
     (async () => {
@@ -329,7 +302,7 @@ export default function Reports() {
             <div className="col-span-3">
               <div className="border rounded-md divide-y overflow-auto max-h-[60vh]">
                 {REPORTS.map((label) => (
-                  <button key={label} onClick={() => setSelected(label)} className={`w-full text-left px-3 py-2 hover:bg-muted text-sm ${selected === label ? 'bg-muted/60 font-medium' : ''}`}>
+                  <button key={label} onClick={() => setSelected(label)} className={`w-full text-left px-3 py-2 hover:bg-muted text-sm ${selected===label? 'bg-muted/60 font-medium' : ''}`}>
                     {label}
                   </button>
                 ))}
@@ -339,7 +312,7 @@ export default function Reports() {
               <div className="p-4 border rounded-md">
                 <h3 className="font-semibold text-lg mb-4">{selected}</h3>
                 <div className="space-y-6">
-                  {sections.map((sec, idx) => (
+                        {sections.map((sec, idx) => (
                     <div key={idx} className="p-3 border rounded-lg bg-white/50">
                       {sec.title && <h4 className="font-medium text-sm mb-3">{sec.title}</h4>}
                       <div className="space-y-3">
@@ -355,17 +328,17 @@ export default function Reports() {
                               continue;
                             }
                             // If current and next are both dates, render side-by-side
-                            const next = sec.fields[i + 1];
+                            const next = sec.fields[i+1];
                             if (f.type === 'date' && next && next.type === 'date') {
                               elems.push(
-                                <div key={f.key + "_pair"} className="grid grid-cols-2 gap-4">
+                                <div key={f.key+"_pair"} className="grid grid-cols-2 gap-4">
                                   <div>
                                     <label className="text-sm text-muted-foreground">{f.label}</label>
-                                    <Input type="date" value={values[f.key] || ''} onChange={(e: any) => setVal(f.key, e.target.value)} />
+                                    <Input type="date" value={values[f.key] || ''} onChange={(e:any)=>setVal(f.key, e.target.value)} />
                                   </div>
                                   <div>
                                     <label className="text-sm text-muted-foreground">{next.label}</label>
-                                    <Input type="date" value={values[next.key] || ''} onChange={(e: any) => setVal(next.key, e.target.value)} />
+                                    <Input type="date" value={values[next.key] || ''} onChange={(e:any)=>setVal(next.key, e.target.value)} />
                                   </div>
                                 </div>
                               );
@@ -377,71 +350,67 @@ export default function Reports() {
                               <div key={f.key} className="space-y-1">
                                 <label className="text-sm text-muted-foreground">{f.label}</label>
                                 {f.type === 'checkbox' ? (
-                                  <div className="flex items-center gap-2"><input type="checkbox" checked={!!values[f.key]} onChange={(e: any) => setVal(f.key, e.target.checked)} /></div>
+                                  <div className="flex items-center gap-2"><input type="checkbox" checked={!!values[f.key]} onChange={(e:any)=>setVal(f.key, e.target.checked)} /></div>
                                 ) : (
                                   // Use DB-driven selects for known keys
                                   (f.key === 'organization') ? (
-                                    <Select value={values['organization'] || 'All'} onValueChange={(v) => setVal('organization', v)}>
+                                    <Select value={values['organization'] || ''} onValueChange={(v)=> setVal('organization', v)}>
                                       <SelectTrigger className="bg-white text-black"><SelectValue placeholder="Choose Organization" /></SelectTrigger>
                                       <SelectContent>
-                                        <SelectItem value="All">All Organizations</SelectItem>
-                                        {organizations.map((o: any) => (<SelectItem key={o.id} value={String(o.id)}>{o.organization_name}</SelectItem>))}
+                                        {organizations.map((o:any) => (<SelectItem key={o.id} value={String(o.id)}>{o.organization_name}</SelectItem>))}
                                       </SelectContent>
                                     </Select>
                                   ) : (f.key === 'vendor') ? (
-                                    <Select value={values['vendor'] || 'All'} onValueChange={(v) => { setVal('vendor', v); setVal('party', v); }}>
+                                    <Select value={values['vendor'] || ''} onValueChange={(v)=> { setVal('vendor', v); setVal('party', v); }}>
                                       <SelectTrigger className="bg-white text-black"><SelectValue placeholder="Choose Vendor" /></SelectTrigger>
                                       <SelectContent>
-                                        <SelectItem value="All">All Vendors</SelectItem>
-                                        {vendors.map((v: any) => (<SelectItem key={v.id} value={String(v.id)}>{v.vendor_name}</SelectItem>))}
+                                        {vendors.map((v:any) => (<SelectItem key={v.id} value={String(v.id)}>{v.vendor_name}</SelectItem>))}
                                       </SelectContent>
                                     </Select>
                                   ) : (f.key === 'employee') ? (
-                                    <Select value={values['employee'] || 'All'} onValueChange={(v) => setVal('employee', v)}>
+                                    <Select value={values['employee'] || ''} onValueChange={(v)=> setVal('employee', v)}>
                                       <SelectTrigger className="bg-white text-black"><SelectValue placeholder="Choose Employee" /></SelectTrigger>
                                       <SelectContent>
-                                        <SelectItem value="All">All Employees</SelectItem>
-                                        {employees.map((e: any) => (<SelectItem key={e.id} value={String(e.id)}>{e.employee_name || e.name}</SelectItem>))}
+                                        {employees.map((e:any) => (<SelectItem key={e.id} value={String(e.id)}>{e.employee_name || e.name}</SelectItem>))}
                                       </SelectContent>
                                     </Select>
                                   ) : (f.key === 'product') ? (
-                                    <Select value={values['product'] || 'All'} onValueChange={(v) => setVal('product', v)}>
+                                    <Select value={values['product'] || ''} onValueChange={(v)=> setVal('product', v)}>
                                       <SelectTrigger className="bg-white text-black"><SelectValue placeholder="Choose Product" /></SelectTrigger>
                                       <SelectContent>
-                                        <SelectItem value="All">All Products</SelectItem>
-                                        {products.map((p: any) => (<SelectItem key={p.id} value={String(p.id)}>{p.product_name}</SelectItem>))}
+                                        {products.map((p:any) => (<SelectItem key={p.id} value={String(p.id)}>{p.product_name}</SelectItem>))}
                                       </SelectContent>
                                     </Select>
                                   ) : (f.key === 'bowser') ? (
-                                    <Select value={values['bowser'] || ''} onValueChange={(v) => setVal('bowser', v)}>
+                                    <Select value={values['bowser'] || ''} onValueChange={(v)=> setVal('bowser', v)}>
                                       <SelectTrigger className="bg-white text-black"><SelectValue placeholder="Choose Bowser" /></SelectTrigger>
                                       <SelectContent>
-                                        {bowsers.map((b: any) => (<SelectItem key={b.id} value={String(b.id)}>{b.tank_number}</SelectItem>))}
+                                        {bowsers.map((b:any) => (<SelectItem key={b.id} value={String(b.id)}>{b.tank_number}</SelectItem>))}
                                       </SelectContent>
                                     </Select>
                                   ) : (f.key === 'mode') ? (
-                                    <Select value={values['mode'] || ''} onValueChange={(v) => setVal('mode', v)}>
+                                    <Select value={values['mode'] || ''} onValueChange={(v)=> setVal('mode', v)}>
                                       <SelectTrigger className="bg-white text-black"><SelectValue placeholder="Mode" /></SelectTrigger>
                                       <SelectContent>
                                         {swipeModes.map((m) => (<SelectItem key={m} value={m}>{m}</SelectItem>))}
                                       </SelectContent>
                                     </Select>
                                   ) : (f.key === 'type') ? (
-                                    <Select value={values['type'] || ''} onValueChange={(v) => setVal('type', v)}>
+                                    <Select value={values['type'] || ''} onValueChange={(v)=> setVal('type', v)}>
                                       <SelectTrigger className="bg-white text-black"><SelectValue placeholder="Choose Type" /></SelectTrigger>
                                       <SelectContent>
                                         {businessTypes.map((t) => (<SelectItem key={t} value={t}>{t}</SelectItem>))}
                                       </SelectContent>
                                     </Select>
                                   ) : (f.key === 'swipeMode') ? (
-                                    <Select value={values['swipeMode'] || ''} onValueChange={(v) => setVal('swipeMode', v)}>
+                                    <Select value={values['swipeMode'] || ''} onValueChange={(v)=> setVal('swipeMode', v)}>
                                       <SelectTrigger className="bg-white text-black"><SelectValue placeholder="Swipe Mode" /></SelectTrigger>
                                       <SelectContent>
                                         {swipeModes.map((m) => (<SelectItem key={m} value={m}>{m}</SelectItem>))}
                                       </SelectContent>
                                     </Select>
                                   ) : (f.key === 'flow') ? (
-                                    <Select value={values['flow'] || ''} onValueChange={(v) => setVal('flow', v)}>
+                                    <Select value={values['flow'] || ''} onValueChange={(v)=> setVal('flow', v)}>
                                       <SelectTrigger className="bg-white text-black"><SelectValue placeholder="Flow" /></SelectTrigger>
                                       <SelectContent>
                                         <SelectItem value="In">In</SelectItem>
@@ -449,28 +418,21 @@ export default function Reports() {
                                       </SelectContent>
                                     </Select>
                                   ) : (f.key === 'expenseType') ? (
-                                    <Select value={values['expenseType'] || ''} onValueChange={(v) => setVal('expenseType', v)}>
+                                    <Select value={values['expenseType'] || ''} onValueChange={(v)=> setVal('expenseType', v)}>
                                       <SelectTrigger className="bg-white text-black"><SelectValue placeholder="Expense Type" /></SelectTrigger>
                                       <SelectContent>
-                                        {expenseTypes.map((e: any) => (<SelectItem key={e.id} value={String(e.id)}>{e.expense_type_name}</SelectItem>))}
+                                        {expenseTypes.map((e:any) => (<SelectItem key={e.id} value={String(e.id)}>{e.expense_type_name}</SelectItem>))}
                                       </SelectContent>
                                     </Select>
                                   ) : (f.key === 'taxType') ? (
-                                    <Select value={values['taxType'] || taxOptions[0]} onValueChange={(v) => setVal('taxType', v)}>
+                                    <Select value={values['taxType'] || taxOptions[0]} onValueChange={(v)=> setVal('taxType', v)}>
                                       <SelectTrigger className="bg-white text-black"><SelectValue placeholder="Choose Tax Type" /></SelectTrigger>
                                       <SelectContent>
                                         {taxOptions.map((t) => (<SelectItem key={t} value={t}>{t}</SelectItem>))}
                                       </SelectContent>
                                     </Select>
-                                  ) : (f.key === 'vendor_type') ? (
-                                    <Select value={values['vendor_type'] || 'All'} onValueChange={(v) => setVal('vendor_type', v)}>
-                                      <SelectTrigger className="bg-white text-black"><SelectValue placeholder="Vendor Type" /></SelectTrigger>
-                                      <SelectContent>
-                                        {vendorTypes.map((t) => (<SelectItem key={t} value={t}>{t}</SelectItem>))}
-                                      </SelectContent>
-                                    </Select>
                                   ) : (
-                                    <Input value={values[f.key] || ''} onChange={(e: any) => setVal(f.key, e.target.value)} />
+                                    <Input value={values[f.key] || ''} onChange={(e:any)=>setVal(f.key, e.target.value)} />
                                   )
                                 )}
                               </div>
@@ -479,8 +441,8 @@ export default function Reports() {
                           return elems;
                         })()}
                       </div>
-                      <div className="mt-4 flex justify-end">
-                        <Button onClick={async () => {
+                        <div className="mt-4 flex justify-end">
+                        <Button onClick={async ()=>{
                           try {
                             const sectionParams: Record<string, any> = {};
                             sec.fields.forEach(f => { sectionParams[f.key] = values[f.key]; });
@@ -495,7 +457,7 @@ export default function Reports() {
                               const j = await r.json();
                               if (j.ok) {
                                 setReportRows(j.rows || []);
-                                setReportColumns(['organization_name', 'phone_number', 'mobile_number', 'credit_limit', 'current_balance']);
+                                setReportColumns(['organization_name','phone_number','mobile_number','credit_limit','current_balance']);
                                 toast({ title: 'Report loaded' });
                               } else {
                                 toast({ variant: 'destructive', title: 'Failed', description: j.error || 'Unknown' });
@@ -507,23 +469,22 @@ export default function Reports() {
                               if (values['from']) qs.push(`from=${encodeURIComponent(values['from'])}`);
                               if (values['to']) qs.push(`to=${encodeURIComponent(values['to'])}`);
                               // swipe mode
-                              if (selected === 'Swipe' && values['swipeMode'] && values['swipeMode'] !== 'All') qs.push(`mode=${encodeURIComponent(values['swipeMode'])}`);
+                              if (selected === 'Swipe' && values['swipeMode']) qs.push(`mode=${encodeURIComponent(values['swipeMode'])}`);
                               // employee filters
-                              if ((selected === 'Attendance' || selected === 'Employee Transactions') && values['employee'] && values['employee'] !== 'All') {
+                              if ((selected === 'Attendance' || selected === 'Employee Transactions') && values['employee']) {
                                 const v = values['employee'];
                                 if (/^\d+$/.test(String(v))) qs.push(`employee_id=${encodeURIComponent(String(v))}`);
                                 else qs.push(`employee=${encodeURIComponent(String(v))}`);
                               }
                               // vendor filters
                               if (selected === 'Vendor Transactions') {
-                                if (values['type'] && values['type'] !== 'All') qs.push(`type=${encodeURIComponent(values['type'])}`);
-                                if (values['vendor_type'] && values['vendor_type'] !== 'All') qs.push(`vendor_type=${encodeURIComponent(values['vendor_type'])}`);
-                                if (values['party'] && values['party'] !== 'All') qs.push(`party=${encodeURIComponent(values['party'])}`);
+                                if (values['type']) qs.push(`type=${encodeURIComponent(values['type'])}`);
+                                if (values['party']) qs.push(`party=${encodeURIComponent(values['party'])}`);
                               }
                               if (selected === 'Busi. Credit/Debit Flow') {
-                                if (values['type'] && values['type'] !== 'All') qs.push(`type=${encodeURIComponent(values['type'])}`);
+                                if (values['type']) qs.push(`type=${encodeURIComponent(values['type'])}`);
                                 // allow business types mapping
-                                if (values['party'] && values['party'] !== 'All') qs.push(`party=${encodeURIComponent(values['party'])}`);
+                                if (values['party']) qs.push(`party=${encodeURIComponent(values['party'])}`);
                               }
 
                               let liveEndpoint: string | null = null;
@@ -533,7 +494,7 @@ export default function Reports() {
                               if (selected === 'Busi. Credit/Debit Flow') liveEndpoint = '/api/reports/business-transactions';
                               if (selected === 'Sales') {
                                 // Pass product id or name
-                                if (values['product'] && values['product'] !== 'All') {
+                                if (values['product']) {
                                   const v = values['product'];
                                   if (/^\d+$/.test(String(v))) qs.push(`product_id=${encodeURIComponent(String(v))}`);
                                   else qs.push(`product=${encodeURIComponent(String(v))}`);
@@ -541,12 +502,12 @@ export default function Reports() {
                                 liveEndpoint = '/api/reports/sales';
                               }
                               if (selected === 'Customer Account Statement') {
-                                if (values['organization'] && values['organization'] !== 'All') {
+                                if (values['organization']) {
                                   const v = values['organization'];
                                   if (/^\d+$/.test(String(v))) qs.push(`organization_id=${encodeURIComponent(String(v))}`);
                                   else qs.push(`organization=${encodeURIComponent(String(v))}`);
                                 }
-                                if (values['employee'] && values['employee'] !== 'All') {
+                                if (values['employee']) {
                                   const v = values['employee'];
                                   if (/^\d+$/.test(String(v))) qs.push(`employee_id=${encodeURIComponent(String(v))}`);
                                   else qs.push(`employee=${encodeURIComponent(String(v))}`);
@@ -576,7 +537,6 @@ export default function Reports() {
                               }
                               if (selected === 'Purchase') {
                                 if (values['type']) qs.push(`type=${encodeURIComponent(values['type'])}`);
-                                if (values['vendor_type']) qs.push(`vendor_type=${encodeURIComponent(values['vendor_type'])}`);
                                 liveEndpoint = '/api/reports/product-purchases';
                               }
                               if (selected === 'Taxation') {
@@ -590,7 +550,7 @@ export default function Reports() {
                                 else liveEndpoint = '/api/reports/gst-purchases';
                               }
                               if (selected === 'Daily Rate History') {
-                                if (values['product'] && values['product'] !== 'All') {
+                                if (values['product']) {
                                   const v = values['product'];
                                   if (/^\d+$/.test(String(v))) qs.push(`product_id=${encodeURIComponent(String(v))}`);
                                   else qs.push(`product=${encodeURIComponent(String(v))}`);
@@ -626,8 +586,8 @@ export default function Reports() {
                                 liveEndpoint = '/api/reports/day-stock-value';
                               }
                               if (selected === 'Expenditure') {
-                                if (values['flow'] && values['flow'] !== 'All') qs.push(`flow=${encodeURIComponent(values['flow'])}`);
-                                if (values['expenseType'] && values['expenseType'] !== 'All') qs.push(`expenseType=${encodeURIComponent(values['expenseType'])}`);
+                                if (values['flow']) qs.push(`flow=${encodeURIComponent(values['flow'])}`);
+                                if (values['expenseType']) qs.push(`expenseType=${encodeURIComponent(values['expenseType'])}`);
                                 liveEndpoint = '/api/reports/expenditure';
                               }
                               if (selected === 'Working Capital') {
@@ -662,34 +622,34 @@ export default function Reports() {
                                 if (j.ok) {
                                   setReportRows(j.rows || []);
                                   // set column order based on report
-                                  if (selected === 'Swipe') setReportColumns(['transaction_date', 'swipe_type', 'swipe_mode', 'amount', 'batch_number', 'employee_name']);
-                                  else if (selected === 'Vendor Transactions') setReportColumns(['transaction_date', 'vendor_name', 'vendor_type', 'transaction_type', 'amount', 'payment_mode', 'description']);
-                                  else if (selected === 'Attendance') setReportColumns(['attendance_date', 'employee_name', 'status', 'shift_name']);
-                                  else if (selected === 'Busi. Credit/Debit Flow') setReportColumns(['transaction_date', 'transaction_type', 'party_name', 'amount', 'description']);
-                                  else if (selected === 'Sales') setReportColumns(['date', 'type', 'item', 'quantity', 'rate', 'amount']);
-                                  else if (selected === 'Customer Account Statement') setReportColumns(['date', 'organization_name', 'entry_type', 'product', 'amount', 'payment_mode']);
-                                  else if (selected === 'Purchase') setReportColumns(['invoice_date', 'invoice_number', 'vendor_name', 'vendor_type', 'invoice_type', 'amount', 'gst_amount', 'total_amount', 'payment_status']);
-                                  else if (selected === 'Daily Rate History') setReportColumns(['rate_date', 'product_name', 'open_rate', 'close_rate', 'variation_amount']);
-                                  else if (selected === 'DSR') setReportColumns(['date', 'product_name', 'total_qty', 'total_amount']);
-                                  else if (selected === 'DSR Format Report') setReportColumns(['date', 'product_name', 'opening_reading', 'closing_reading', 'quantity', 'rate', 'amount']);
-                                  else if (selected === 'Day Wise Stock Value') setReportColumns(['date', 'total_value']);
-                                  else if (selected === 'Expenditure') setReportColumns(['expense_date', 'expense_type_name', 'flow_type', 'payment_mode', 'amount', 'employee_name']);
-                                  else if (selected === 'Guest Customer Sales') setReportColumns(['sale_date', 'mobile_number', 'vehicle_number', 'product_name', 'quantity', 'price_per_unit', 'total_amount', 'payment_mode']);
-                                  else if (selected === 'Stock Variation') setReportColumns(['date', 'product_name', 'opening_reading', 'closing_reading', 'quantity', 'variation']);
-                                  else if (selected === 'Receivables/Payables') setReportColumns(['total_receivables', 'total_payables']);
-                                  else if (selected === 'Revenue') setReportColumns(['from', 'to', 'meter_sales', 'guest_sales', 'lub_sales', 'revenue']);
-                                  else if (selected === 'Net Profit') setReportColumns(['from', 'to', 'meter_sales', 'guest_sales', 'lub_sales', 'revenue', 'total_expenses', 'cogs', 'net_profit']);
-                                  else if (selected === "Bowser Transaction's") setReportColumns(['sale_date', 'product_name', 'before_dip_stock', 'gross_stock', 'tanker_sale_quantity', 'notes']);
+                                  if (selected === 'Swipe') setReportColumns(['transaction_date','swipe_type','swipe_mode','amount','batch_number','employee_name']);
+                                  else if (selected === 'Vendor Transactions') setReportColumns(['transaction_date','vendor_name','vendor_type','transaction_type','amount','payment_mode','description']);
+                                  else if (selected === 'Attendance') setReportColumns(['attendance_date','employee_name','status','shift_name']);
+                                  else if (selected === 'Busi. Credit/Debit Flow') setReportColumns(['transaction_date','transaction_type','party_name','amount','description']);
+                                  else if (selected === 'Sales') setReportColumns(['date','type','item','quantity','rate','amount']);
+                                  else if (selected === 'Customer Account Statement') setReportColumns(['date','organization_name','entry_type','product','amount','payment_mode']);
+                                  else if (selected === 'Purchase') setReportColumns(['invoice_date','invoice_number','vendor_name','vendor_type','invoice_type','amount','gst_amount','total_amount','payment_status']);
+                                  else if (selected === 'Daily Rate History') setReportColumns(['rate_date','product_name','open_rate','close_rate','variation_amount']);
+                                  else if (selected === 'DSR') setReportColumns(['date','product_name','total_qty','total_amount']);
+                                  else if (selected === 'DSR Format Report') setReportColumns(['date','product_name','opening_reading','closing_reading','quantity','rate','amount']);
+                                  else if (selected === 'Day Wise Stock Value') setReportColumns(['date','total_value']);
+                                  else if (selected === 'Expenditure') setReportColumns(['expense_date','expense_type_name','flow_type','payment_mode','amount','employee_name']);
+                                  else if (selected === 'Guest Customer Sales') setReportColumns(['sale_date','mobile_number','vehicle_number','product_name','quantity','price_per_unit','total_amount','payment_mode']);
+                                  else if (selected === 'Stock Variation') setReportColumns(['date','product_name','opening_reading','closing_reading','quantity','variation']);
+                                  else if (selected === 'Receivables/Payables') setReportColumns(['total_receivables','total_payables']);
+                                  else if (selected === 'Revenue') setReportColumns(['from','to','meter_sales','guest_sales','lub_sales','revenue']);
+                                  else if (selected === 'Net Profit') setReportColumns(['from','to','meter_sales','guest_sales','lub_sales','revenue','total_expenses','cogs','net_profit']);
+                                  else if (selected === "Bowser Transaction's") setReportColumns(['sale_date','product_name','before_dip_stock','gross_stock','tanker_sale_quantity','notes']);
                                   else if (selected === 'Taxation') {
                                     const t = (values['taxType'] || 'GST Purchases').toLowerCase();
-                                    if (t.includes('gst') && t.includes('purchase')) setReportColumns(['invoice_date', 'vendor_name', 'invoice_number', 'amount', 'gst_amount', 'total_amount']);
-                                    else if (t.includes('gst') && t.includes('sale')) setReportColumns(['product_name', 'total_sales', 'vat_amount']);
-                                    else if (t.includes('tcs')) setReportColumns(['invoice_date', 'vendor_name', 'invoice_number', 'amount', 'gst_amount', 'tcs_amount', 'total_amount']);
-                                    else if (t.includes('tds')) setReportColumns(['transaction_date', 'vendor_name', 'transaction_type', 'amount', 'tds_amount', 'payment_mode']);
-                                    else if (t.includes('vat')) setReportColumns(['product_name', 'total_sales', 'vat_amount']);
+                                    if (t.includes('gst') && t.includes('purchase')) setReportColumns(['invoice_date','vendor_name','invoice_number','amount','gst_amount','total_amount']);
+                                    else if (t.includes('gst') && t.includes('sale')) setReportColumns(['product_name','total_sales','vat_amount']);
+                                    else if (t.includes('tcs')) setReportColumns(['invoice_date','vendor_name','invoice_number','amount','gst_amount','tcs_amount','total_amount']);
+                                    else if (t.includes('tds')) setReportColumns(['transaction_date','vendor_name','transaction_type','amount','tds_amount','payment_mode']);
+                                    else if (t.includes('vat')) setReportColumns(['product_name','total_sales','vat_amount']);
                                     else if (t.includes('lfr')) setReportColumns([]);
                                   }
-                                  else if (selected === 'Daily Business Summary') setReportColumns(['date', 'opening_balance', 'meter_sale', 'lubricant_sale', 'total_sale', 'credit_amount', 'expenses', 'shortage', 'closing_balance', 'notes']);
+                                  else if (selected === 'Daily Business Summary') setReportColumns(['date','opening_balance','meter_sale','lubricant_sale','total_sale','credit_amount','expenses','shortage','closing_balance','notes']);
                                   toast({ title: 'Report loaded' });
                                 } else {
                                   toast({ variant: 'destructive', title: 'Failed', description: j.error || 'Unknown' });
@@ -704,7 +664,7 @@ export default function Reports() {
                                 }
                               }
                             }
-                          } catch (e: any) {
+                          } catch (e:any) {
                             toast({ variant: 'destructive', title: 'Failed', description: e.message || String(e) });
                           }
                         }} className="bg-emerald-400">SUBMIT</Button>
@@ -720,7 +680,7 @@ export default function Reports() {
                         <thead>
                           <tr className="text-left">
                             {(reportColumns || Object.keys(reportRows[0] || {})).map((c) => (
-                              <th key={c} className="pr-4">{c.replace(/_/g, ' ')}</th>
+                              <th key={c} className="pr-4">{c.replace(/_/g,' ')}</th>
                             ))}
                           </tr>
                         </thead>

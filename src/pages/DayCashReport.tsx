@@ -1,440 +1,366 @@
-import React, { useEffect, useState, useCallback } from 'react';
-import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
-import { useToast } from '@/hooks/use-toast';
-import { Search, Download, RefreshCw, Calendar, TrendingUp, TrendingDown, DollarSign, HelpCircle, Filter } from 'lucide-react';
+import { useEffect, useState, useCallback } from "react";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
+import { Button } from "@/components/ui/button";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { TrendingUp, Banknote, CreditCard, IndianRupee } from "lucide-react";
+import { useQuery } from "@tanstack/react-query";
+import { handleAPIError } from "@/lib/errorHandler";
+import { useReportDateRange } from "@/hooks/useDateRange";
 
-interface DayCashMovement {
-  date: string;
-  total_in: number;
-  total_out: number;
-  net_cash: number;
-  notes: string;
-}
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 
 export default function DayCashReport() {
-  const { toast } = useToast();
-  const [rows, setRows] = useState<DayCashMovement[]>([]);
-  const [filters, setFilters] = useState({ from: '', to: '' });
-  const [loading, setLoading] = useState(false);
-  const [showKeyboardHelp, setShowKeyboardHelp] = useState(false);
+  const { fromDate, toDate, setFromDate, setToDate, isValidRange } = useReportDateRange('LAST_7_DAYS');
+  const [loading, setLoading] = useState(true);
+  const [rows, setRows] = useState<any[]>([]);
+  const [filterText, setFilterText] = useState("");
 
+  const filteredRows = rows.filter(r => {
+    const search = filterText.toLowerCase();
+    if (!search) return true;
+    return Object.values(r).some(v => String(v).toLowerCase().includes(search));
+  });
 
-  // Keyboard shortcuts
-  useEffect(() => {
-    const handleKeyDown = (event: KeyboardEvent) => {
-      // Only trigger shortcuts when not typing in input fields
-      if (event.target instanceof HTMLInputElement || 
-          event.target instanceof HTMLTextAreaElement || 
-          event.target instanceof HTMLSelectElement) {
-        return;
-      }
+  const [totals, setTotals] = useState({
+    meterSale: 0,
+    lubSale: 0,
+    recovery: 0,
+    cashIn: 0,
+    totalCash: 0,
+    swipe: 0,
+    credit: 0,
+    expenses: 0,
+    discount: 0,
+    recoveryBank: 0,
+    shortage: 0,
+    handCash: 0,
+  });
+  const [errorMsg, setErrorMsg] = useState<string>("");
+  const [shiftId, setShiftId] = useState<string>("ALL");
 
-      // Ctrl/Cmd + F: Focus search
-      if ((event.ctrlKey || event.metaKey) && event.key === 'f') {
-        event.preventDefault();
-        const fromInput = document.querySelector('input[placeholder*="From"]') as HTMLInputElement;
-        if (fromInput) {
-          fromInput.focus();
-        }
-      }
-      
-      // Ctrl/Cmd + R: Refresh report
-      if ((event.ctrlKey || event.metaKey) && event.key === 'r') {
-        event.preventDefault();
-        fetchList();
-      }
-      
-      // F5: Refresh report (alternative)
-      if (event.key === 'F5') {
-        event.preventDefault();
-        fetchList();
-      }
-      
-      // ?: Toggle keyboard shortcuts help
-      if (event.key === '?') {
-        event.preventDefault();
-        setShowKeyboardHelp(prev => !prev);
-      }
-    };
+  const { data: shifts = [] } = useQuery({
+    queryKey: ["/api/duty-shifts"],
+    queryFn: async () => {
+      const response = await fetch('/api/duty-shifts', { credentials: 'include' });
+      const result = await response.json();
+      if (!result.ok) throw new Error(result.error || 'Failed to fetch duty shifts');
+      return result.rows || [];
+    },
+  });
 
-    document.addEventListener('keydown', handleKeyDown);
-    return () => document.removeEventListener('keydown', handleKeyDown);
-  }, []);
+  const fetchReport = useCallback(async () => {
+    setLoading(true);
+    setErrorMsg("");
 
-  // Update fetchList to use current filters state
-  const fetchList = useCallback(async () => {
-    try {
-      setLoading(true);
-      const qs = new URLSearchParams();
-      if (filters.from) qs.set('from', filters.from);
-      if (filters.to) qs.set('to', filters.to);
-      
-      const res = await fetch('/api/day-cash-report?' + qs.toString());
-      const d = await res.json();
-      
-      if (d.ok) {
-        setRows(d.rows || []);
-        toast({
-          title: "Success",
-          description: `Loaded ${d.rows?.length || 0} cash movements`,
-        });
-      } else {
-        console.error('API returned error:', d);
-        toast({
-          title: "Error",
-          description: d.error || "Failed to fetch day cash report",
-          variant: "destructive",
-        });
-      }
-    } catch (e) {
-      console.error('Failed to fetch day cash report', e);
-      toast({
-        title: "Error",
-        description: "Failed to fetch day cash report",
-        variant: "destructive",
-      });
-    } finally {
+    if (!isValidRange) {
+      setErrorMsg("Please select a valid date range");
       setLoading(false);
-    }
-  }, [filters, toast]);
-
-  const handleSearch = useCallback(() => {
-    fetchList();
-  }, [fetchList]);
-
-  const clearFilters = () => {
-    setFilters({ from: '', to: '' });
-    // Don't call fetchList immediately, let the useEffect handle it
-  };
-
-  // Add useEffect to trigger fetchList when filters change
-  useEffect(() => {
-    fetchList();
-  }, [fetchList]);
-
-  const exportToCSV = () => {
-    if (rows.length === 0) {
-      toast({
-        title: "No Data",
-        description: "No data to export",
-        variant: "destructive",
-      });
       return;
     }
 
-    const csvContent = [
-      ['Date', 'Total In', 'Total Out', 'Net Cash', 'Notes'],
-      ...rows.map(row => [
-        row.date,
-        row.total_in,
-        row.total_out,
-        row.net_cash,
-        row.notes || ''
-      ])
-    ].map(row => row.join(',')).join('\n');
+    try {
+      const params = new URLSearchParams();
+      params.append('from_date', fromDate);
+      params.append('to_date', toDate);
+      if (shiftId !== "ALL") params.append('shift_id', shiftId);
 
-    const blob = new Blob([csvContent], { type: 'text/csv' });
-    const url = window.URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `day-cash-report-${new Date().toISOString().slice(0, 10)}.csv`;
-    a.click();
-    window.URL.revokeObjectURL(url);
+      const [
+        guestRes, creditRes, lubeRes, expRes, recRes, meterRes,
+        swipeRes, empCashRes
+      ] = await Promise.all([
+        fetch(`/api/guest-sales?${params.toString()}`, { credentials: 'include' }),
+        fetch(`/api/credit-sales?${params.toString()}`, { credentials: 'include' }),
+        fetch(`/api/lubricant-sales?${params.toString()}`, { credentials: 'include' }),
+        fetch(`/api/expenses?${params.toString()}`, { credentials: 'include' }),
+        fetch(`/api/recoveries?${params.toString()}`, { credentials: 'include' }),
+        fetch(`/api/sale-entries?${params.toString()}`, { credentials: 'include' }),
+        fetch(`/api/swipe-transactions?${params.toString()}`, { credentials: 'include' }),
+        fetch(`/api/employee-cash-recovery?${params.toString()}`, { credentials: 'include' })
+      ]);
 
-    toast({
-      title: "Export Complete",
-      description: `Exported ${rows.length} records`,
-    });
-  };
+      const [
+        guestData, creditData, lubeData, expData, recData, meterData,
+        swipeData, empCashData
+      ] = await Promise.all([
+        guestRes.json(), creditRes.json(), lubeRes.json(), expRes.json(), recRes.json(), meterRes.json(),
+        swipeRes.json(), empCashRes.json()
+      ]);
 
-  const calculateTotals = () => {
-    const totalIn = rows.reduce((sum, row) => sum + parseFloat(row.total_in?.toString() || '0'), 0);
-    const totalOut = rows.reduce((sum, row) => sum + parseFloat(row.total_out?.toString() || '0'), 0);
-    const netCash = totalIn - totalOut;
-    return { totalIn, totalOut, netCash };
-  };
+      const map: Record<string, any> = {};
+      const ensure = (d: string) => (map[d] ||= {
+        date: d,
+        meterSale: 0,
+        lubSale: 0,
+        recovery: 0,
+        cashIn: 0,
+        totalCash: 0,
+        swipe: 0,
+        credit: 0,
+        expenses: 0,
+        discount: 0,
+        recoveryBank: 0,
+        shortage: 0,
+        handCash: 0,
+        settlement: "Pending" // Placeholder
+      });
 
-  const totals = calculateTotals();
+      // Meter Sale
+      (meterData.rows || []).forEach((m: any) => {
+        if (shiftId !== "ALL" && m.shift_id !== shiftId) return;
+        const r = ensure(m.sale_date);
+        r.meterSale += Number(m.net_sale_amount || 0);
+      });
+
+      // Lub Sale
+      (lubeData.rows || []).forEach((l: any) => {
+        const r = ensure(l.sale_date);
+        r.lubSale += Number(l.total_amount || 0);
+        r.discount += Number(l.discount || 0);
+      });
+
+      // Recovery (Cash vs Bank)
+      (recData.rows || []).forEach((rv: any) => {
+        const r = ensure(rv.recovery_date);
+        const amt = Number(rv.received_amount || 0);
+        const disc = Number(rv.discount || 0);
+        if (rv.payment_mode === "Cash") {
+          r.recovery += amt;
+        } else {
+          r.recoveryBank += amt;
+        }
+        r.discount += disc;
+      });
+
+      // Expenses
+      (expData.rows || []).forEach((e: any) => {
+        const r = ensure(e.expense_date);
+        r.expenses += Number(e.amount || 0);
+      });
+
+      // Credit Sales
+      (creditData.rows || []).forEach((c: any) => {
+        const r = ensure(c.sale_date);
+        r.credit += Number(c.total_amount || 0);
+      });
+
+      // Swipe
+      (swipeData.rows || []).forEach((s: any) => {
+        const r = ensure(s.transaction_date);
+        r.swipe += Number(s.amount || 0);
+      });
+
+      // Shortage
+      (empCashData.rows || []).forEach((emp: any) => {
+        const r = ensure(emp.recovery_date);
+        r.shortage += Number(emp.shortage_amount || 0);
+      });
+
+      // Guest Sales 
+      (guestData.rows || []).forEach((g: any) => {
+        const r = ensure(g.sale_date);
+      });
+
+      // Calculate Computed Columns per day
+      Object.values(map).forEach(r => {
+        const salesCash = (r.meterSale + r.lubSale) - (r.credit + r.swipe);
+        const actualSalesCash = Math.max(0, salesCash);
+
+        r.cashIn = actualSalesCash; // Cash generated from operations
+        r.totalCash = r.cashIn + r.recovery; // Total liquid cash
+        r.handCash = r.totalCash - r.expenses;
+      });
+
+      const arr = Object.values(map).sort((a, b) => a.date.localeCompare(b.date));
+      setRows(arr);
+
+      // Aggregates
+      const t = arr.reduce((acc, r: any) => ({
+        meterSale: acc.meterSale + r.meterSale,
+        lubSale: acc.lubSale + r.lubSale,
+        recovery: acc.recovery + r.recovery,
+        cashIn: acc.cashIn + r.cashIn,
+        totalCash: acc.totalCash + r.totalCash,
+        swipe: acc.swipe + r.swipe,
+        credit: acc.credit + r.credit,
+        expenses: acc.expenses + r.expenses,
+        discount: acc.discount + r.discount,
+        recoveryBank: acc.recoveryBank + r.recoveryBank,
+        shortage: acc.shortage + r.shortage,
+        handCash: acc.handCash + r.handCash,
+      }), {
+        meterSale: 0, lubSale: 0, recovery: 0, cashIn: 0, totalCash: 0,
+        swipe: 0, credit: 0, expenses: 0, discount: 0, recoveryBank: 0,
+        shortage: 0, handCash: 0
+      });
+      setTotals(t);
+      setLoading(false);
+
+    } catch (e: any) {
+      const errorInfo = handleAPIError(e, "Day Cash Report");
+      setErrorMsg(errorInfo.description);
+      setRows([]);
+      setLoading(false);
+    }
+  }, [fromDate, toDate, shiftId, isValidRange]);
+
+  useEffect(() => { if (fromDate && toDate) fetchReport(); }, [fromDate, toDate, fetchReport]);
 
   return (
     <div className="space-y-6">
-      {/* Header with Filters */}
-      <Card>
-        <CardHeader className="bg-gradient-to-r from-blue-600 to-blue-700 text-white">
-          <div className="flex justify-between items-center">
-            <CardTitle className="text-xl font-bold">Day Cash Report</CardTitle>
-            <div className="flex gap-2 items-center">
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => setShowKeyboardHelp(!showKeyboardHelp)}
-                className="bg-white/10 hover:bg-white/20 text-white border-white/20"
-              >
-                <HelpCircle className="h-4 w-4 mr-1" />
-                Shortcuts
+      <div className="flex items-center justify-between">
+        <h1 className="text-3xl font-bold">Day Cash Report</h1>
+        <div className="flex items-center gap-2">
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button>
+                Add Sale <PlusIcon className="w-4 h-4 ml-2" />
               </Button>
-            </div>
-          </div>
-        </CardHeader>
-        <CardContent className="p-6">
-          {/* Keyboard Shortcuts Help */}
-          {showKeyboardHelp && (
-            <div className="mb-6 p-4 bg-blue-50 border border-blue-200 rounded-lg">
-              <h3 className="text-lg font-semibold text-blue-800 mb-3">Keyboard Shortcuts</h3>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-3 text-sm">
-                <div className="space-y-2">
-                  <div className="flex justify-between">
-                    <span className="text-gray-700">Focus search:</span>
-                    <kbd className="px-2 py-1 bg-gray-200 rounded text-xs">Ctrl+F</kbd>
-                  </div>
-                  <div className="flex justify-between">
-                    <span className="text-gray-700">Refresh report:</span>
-                    <kbd className="px-2 py-1 bg-gray-200 rounded text-xs">Ctrl+R</kbd>
-                  </div>
-                </div>
-                <div className="space-y-2">
-                  <div className="flex justify-between">
-                    <span className="text-gray-700">Refresh (alt):</span>
-                    <kbd className="px-2 py-1 bg-gray-200 rounded text-xs">F5</kbd>
-                  </div>
-                  <div className="flex justify-between">
-                    <span className="text-gray-700">Show/hide shortcuts:</span>
-                    <kbd className="px-2 py-1 bg-gray-200 rounded text-xs">?</kbd>
-                  </div>
-                </div>
-              </div>
-            </div>
-          )}
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end">
+              <DropdownMenuItem onClick={() => window.location.href = '/day-business/sale-entry'}>Sale Entry</DropdownMenuItem>
+              <DropdownMenuItem onClick={() => window.location.href = '/day-business/lubricants'}>Lubricant</DropdownMenuItem>
+              <DropdownMenuItem onClick={() => window.location.href = '/day-business/swipe'}>Swipe</DropdownMenuItem>
+              <DropdownMenuItem onClick={() => window.location.href = '/day-business/credit-sale'}>Credit Sale</DropdownMenuItem>
+              <DropdownMenuItem onClick={() => window.location.href = '/day-business/expenses'}>Expenses</DropdownMenuItem>
+              <DropdownMenuItem onClick={() => window.location.href = '/day-business/recovery'}>Recovery</DropdownMenuItem>
+              <DropdownMenuItem onClick={() => window.location.href = '/day-business/day-settlement'}>Day Settlement</DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
+        </div>
+      </div>
 
-          {/* Search Filters */}
-          <div className="space-y-4">
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 items-end">
-              <div className="space-y-2">
-                <Label htmlFor="from_date" className="text-sm font-medium">From Date</Label>
-                <Input 
-                  id="from_date"
-                  type="date" 
-                  value={filters.from} 
-                  onChange={(e) => setFilters({ ...filters, from: e.target.value })} 
-                  placeholder="From date"
-                  className="w-full"
-                />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="to_date" className="text-sm font-medium">To Date</Label>
-                <Input 
-                  id="to_date"
-                  type="date" 
-                  value={filters.to} 
-                  onChange={(e) => setFilters({ ...filters, to: e.target.value })} 
-                  placeholder="To date"
-                  className="w-full"
-                />
-              </div>
-              <div className="flex gap-2">
-                <Button 
-                  onClick={handleSearch} 
-                  className="bg-blue-600 hover:bg-blue-700 text-white flex-1"
-                  disabled={loading}
-                >
-                  {loading ? (
-                    <>
-                      <RefreshCw className="h-4 w-4 mr-1 animate-spin" />
-                      Searching...
-                    </>
-                  ) : (
-                    <>
-                      <Search className="h-4 w-4 mr-1" />
-                      Search
-                    </>
-                  )}
-                </Button>
-                <Button 
-                  onClick={clearFilters} 
-                  variant="outline"
-                  className="flex-1"
-                  disabled={loading}
-                >
-                  Clear
-                </Button>
-              </div>
-              <div className="flex gap-2">
-                <Button 
-                  onClick={exportToCSV} 
-                  variant="outline"
-                  className="w-full"
-                  disabled={rows.length === 0}
-                >
-                  <Download className="h-4 w-4 mr-1" />
-                  Export CSV
-                </Button>
-              </div>
+      <Card>
+        <CardContent className="p-4">
+          <div className="flex flex-wrap items-center justify-between gap-4">
+            <div className="flex items-center gap-2">
+              <span className="text-sm font-medium">Show</span>
+              <Select defaultValue="All">
+                <SelectTrigger className="w-[80px]">
+                  <SelectValue placeholder="All" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="All">All</SelectItem>
+                  <SelectItem value="10">10</SelectItem>
+                  <SelectItem value="25">25</SelectItem>
+                  <SelectItem value="50">50</SelectItem>
+                </SelectContent>
+              </Select>
             </div>
 
-            {/* Quick Filter Buttons */}
-            <div className="space-y-2">
-              <Label className="text-sm font-medium">Quick Filters</Label>
-              <div className="flex flex-wrap gap-2">
-                <Button 
-                  variant="outline" 
-                  size="sm"
-                  onClick={() => {
-                    const today = new Date().toISOString().slice(0, 10);
-                    setFilters({ from: today, to: today });
-                  }}
-                >
-                  <Calendar className="h-4 w-4 mr-1" />
-                  Today
-                </Button>
-                <Button 
-                  variant="outline" 
-                  size="sm"
-                  onClick={() => {
-                    const today = new Date();
-                    const weekAgo = new Date(today.getTime() - 7 * 24 * 60 * 60 * 1000);
-                    setFilters({ 
-                      from: weekAgo.toISOString().slice(0, 10), 
-                      to: today.toISOString().slice(0, 10) 
-                    });
-                  }}
-                >
-                  Last 7 Days
-                </Button>
-                <Button 
-                  variant="outline" 
-                  size="sm"
-                  onClick={() => {
-                    const today = new Date();
-                    const monthAgo = new Date(today.getTime() - 30 * 24 * 60 * 60 * 1000);
-                    setFilters({ 
-                      from: monthAgo.toISOString().slice(0, 10), 
-                      to: today.toISOString().slice(0, 10) 
-                    });
-                  }}
-                >
-                  Last 30 Days
-                </Button>
+            <div className="flex items-center gap-4">
+              <div className="flex items-center gap-2">
+                <span className="text-sm">From Date</span>
+                <Input type="date" value={fromDate} onChange={(e) => setFromDate(e.target.value)} className="w-[150px]" />
               </div>
+              <div className="flex items-center gap-2">
+                <span className="text-sm">To Date</span>
+                <Input type="date" value={toDate} onChange={(e) => setToDate(e.target.value)} className="w-[150px]" />
+              </div>
+              <Button onClick={fetchReport} disabled={loading}>{loading ? "Searching..." : "Search"}</Button>
+            </div>
+
+            <div className="flex items-center gap-2">
+              <span className="text-sm font-medium">Filter:</span>
+              <Input
+                placeholder="Type to filter..."
+                className="w-[200px]"
+                value={filterText}
+                onChange={(e) => setFilterText(e.target.value)}
+              />
             </div>
           </div>
         </CardContent>
       </Card>
 
-      {/* Summary Cards */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-        <Card>
-          <CardContent className="p-4">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm font-medium text-blue-600">Total Inflows</p>
-                <p className="text-2xl font-bold text-blue-800">₹{totals.totalIn.toLocaleString()}</p>
-              </div>
-              <TrendingUp className="h-8 w-8 text-blue-600" />
-            </div>
-          </CardContent>
-        </Card>
-        
-        <Card>
-          <CardContent className="p-4">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm font-medium text-orange-600">Total Outflows</p>
-                <p className="text-2xl font-bold text-orange-800">₹{totals.totalOut.toLocaleString()}</p>
-              </div>
-              <TrendingDown className="h-8 w-8 text-orange-600" />
-            </div>
-          </CardContent>
-        </Card>
-        
-        <Card>
-          <CardContent className="p-4">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm font-medium text-blue-600">Net Cash Flow</p>
-                <p className={`text-2xl font-bold ${totals.netCash >= 0 ? 'text-blue-800' : 'text-orange-800'}`}>
-                  ₹{totals.netCash.toLocaleString()}
-                </p>
-              </div>
-              <DollarSign className="h-8 w-8 text-blue-600" />
-            </div>
-          </CardContent>
-        </Card>
-        
-        <Card>
-          <CardContent className="p-4">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm font-medium text-gray-600">Total Records</p>
-                <p className="text-2xl font-bold text-gray-800">{rows.length}</p>
-              </div>
-              <Filter className="h-8 w-8 text-gray-600" />
-            </div>
-          </CardContent>
-        </Card>
-      </div>
-
-      {/* Data Table */}
       <Card>
-        <CardHeader>
-          <CardTitle className="text-lg font-semibold">Cash Movement Details</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <div className="overflow-x-auto">
-            <table className="w-full border-collapse">
-              <thead>
-                <tr className="bg-gray-50 border-b">
-                  <th className="text-left p-3 font-medium text-gray-700">Date</th>
-                  <th className="text-right p-3 font-medium text-gray-700">Total In</th>
-                  <th className="text-right p-3 font-medium text-gray-700">Total Out</th>
-                  <th className="text-right p-3 font-medium text-gray-700">Net Cash</th>
-                  <th className="text-left p-3 font-medium text-gray-700">Notes</th>
-                </tr>
-              </thead>
-              <tbody>
-                {loading ? (
-                  <tr>
-                    <td colSpan={5} className="text-center p-8">
-                      <div className="flex items-center justify-center gap-2">
-                        <RefreshCw className="h-4 w-4 animate-spin text-blue-600" />
-                        <span className="text-gray-500">Loading cash movements...</span>
-                      </div>
-                    </td>
-                  </tr>
-                ) : rows.length === 0 ? (
-                  <tr>
-                    <td colSpan={5} className="text-center p-8 text-gray-500">
-                      No cash movements found for the selected period
-                    </td>
-                  </tr>
-                ) : rows.map((r, index) => (
-                  <tr key={r.date} className="border-b hover:bg-gray-50 transition-colors">
-                    <td className="p-3 text-gray-900">
-                      {new Date(r.date).toLocaleDateString('en-IN')}
-                    </td>
-                    <td className="p-3 text-right font-mono text-blue-800">
-                      ₹{parseFloat(r.total_in?.toString() || '0').toLocaleString()}
-                    </td>
-                    <td className="p-3 text-right font-mono text-orange-800">
-                      ₹{parseFloat(r.total_out?.toString() || '0').toLocaleString()}
-                    </td>
-                    <td className={`p-3 text-right font-mono font-semibold ${
-                      parseFloat(r.net_cash?.toString() || '0') >= 0 ? 'text-blue-800' : 'text-orange-800'
-                    }`}>
-                      ₹{parseFloat(r.net_cash?.toString() || '0').toLocaleString()}
-                    </td>
-                    <td className="p-3 text-gray-600">
-                      {r.notes || '-'}
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+        <CardContent className="p-0">
+          <div className="rounded-md border overflow-x-auto">
+            <Table>
+              <TableHeader>
+                <TableRow className="bg-muted/50">
+                  <TableHead>S.No</TableHead>
+                  <TableHead>Date</TableHead>
+                  <TableHead className="text-right">Meter Sale(₹)</TableHead>
+                  <TableHead className="text-right">Lub Sale(₹)</TableHead>
+                  <TableHead className="text-right">Recovery(₹)</TableHead>
+                  <TableHead className="text-right">Cash In(₹)</TableHead>
+                  <TableHead className="text-right">Total Cash(₹)</TableHead>
+                  <TableHead className="text-right">Swipe(₹)</TableHead>
+                  <TableHead className="text-right">Credit(₹)</TableHead>
+                  <TableHead className="text-right">Expenses(₹)</TableHead>
+                  <TableHead className="text-right">Discount(₹)</TableHead>
+                  <TableHead className="text-right">Recovery Bank(₹)</TableHead>
+                  <TableHead className="text-right">Shortage(₹)</TableHead>
+                  <TableHead className="text-right">Hand Cash(₹)</TableHead>
+                  <TableHead>Settlement</TableHead>
+                  <TableHead>Pictures</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {filteredRows.length === 0 ? (
+                  <TableRow><TableCell colSpan={16} className="text-center h-24 text-muted-foreground">No data available in table</TableCell></TableRow>
+                ) : (
+                  filteredRows.map((r, i) => (
+                    <TableRow key={r.date}>
+                      <TableCell>{i + 1}</TableCell>
+                      <TableCell className="font-medium whitespace-nowrap">{new Date(r.date).toLocaleDateString()}</TableCell>
+                      <TableCell className="text-right">{r.meterSale.toLocaleString("en-IN")}</TableCell>
+                      <TableCell className="text-right">{r.lubSale.toLocaleString("en-IN")}</TableCell>
+                      <TableCell className="text-right text-green-600 font-medium">{r.recovery.toLocaleString("en-IN")}</TableCell>
+                      <TableCell className="text-right">{r.cashIn.toLocaleString("en-IN")}</TableCell>
+                      <TableCell className="text-right font-bold">{r.totalCash.toLocaleString("en-IN")}</TableCell>
+                      <TableCell className="text-right">{r.swipe.toLocaleString("en-IN")}</TableCell>
+                      <TableCell className="text-right">{r.credit.toLocaleString("en-IN")}</TableCell>
+                      <TableCell className="text-right text-red-600">{r.expenses.toLocaleString("en-IN")}</TableCell>
+                      <TableCell className="text-right">{r.discount.toLocaleString("en-IN")}</TableCell>
+                      <TableCell className="text-right">{r.recoveryBank.toLocaleString("en-IN")}</TableCell>
+                      <TableCell className="text-right text-red-500">{r.shortage.toLocaleString("en-IN")}</TableCell>
+                      <TableCell className="text-right font-bold text-blue-700">{r.handCash.toLocaleString("en-IN")}</TableCell>
+                      <TableCell>{r.settlement}</TableCell>
+                      <TableCell>-</TableCell>
+                    </TableRow>
+                  ))
+                )}
+                {filteredRows.length > 0 && (
+                  <TableRow className="bg-muted font-bold">
+                    <TableCell colSpan={2}>Total</TableCell>
+                    <TableCell className="text-right">{totals.meterSale.toLocaleString("en-IN")}</TableCell>
+                    <TableCell className="text-right">{totals.lubSale.toLocaleString("en-IN")}</TableCell>
+                    <TableCell className="text-right text-green-700">{totals.recovery.toLocaleString("en-IN")}</TableCell>
+                    <TableCell className="text-right">{totals.cashIn.toLocaleString("en-IN")}</TableCell>
+                    <TableCell className="text-right">{totals.totalCash.toLocaleString("en-IN")}</TableCell>
+                    <TableCell className="text-right">{totals.swipe.toLocaleString("en-IN")}</TableCell>
+                    <TableCell className="text-right">{totals.credit.toLocaleString("en-IN")}</TableCell>
+                    <TableCell className="text-right text-red-700">{totals.expenses.toLocaleString("en-IN")}</TableCell>
+                    <TableCell className="text-right">{totals.discount.toLocaleString("en-IN")}</TableCell>
+                    <TableCell className="text-right">{totals.recoveryBank.toLocaleString("en-IN")}</TableCell>
+                    <TableCell className="text-right text-red-700">{totals.shortage.toLocaleString("en-IN")}</TableCell>
+                    <TableCell className="text-right text-blue-800">{totals.handCash.toLocaleString("en-IN")}</TableCell>
+                    <TableCell></TableCell>
+                    <TableCell></TableCell>
+                  </TableRow>
+                )}
+              </TableBody>
+            </Table>
           </div>
         </CardContent>
       </Card>
     </div>
   );
+}
+
+function PlusIcon({ className }: { className?: string }) {
+  return (
+    <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}>
+      <path d="M5 12h14" />
+      <path d="M12 5v14" />
+    </svg>
+  )
 }

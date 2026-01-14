@@ -10,8 +10,8 @@ import { Link } from "react-router-dom";
 
 export default function StockReport() {
   const { toast } = useToast();
-  const [chooseDate, setChooseDate] = useState<string>(new Date().toISOString().slice(0, 10));
-  const [endDateTime, setEndDateTime] = useState<string>(new Date().toISOString().slice(0, 16));
+  const [chooseDate, setChooseDate] = useState<string>(new Date().toISOString().slice(0,10));
+  const [endDateTime, setEndDateTime] = useState<string>(new Date().toISOString().slice(0,16));
   const [fromDate, setFromDate] = useState<string>("");
   const [toDate, setToDate] = useState<string>("");
   const [product, setProduct] = useState("");
@@ -21,13 +21,12 @@ export default function StockReport() {
     queryKey: ["/api/opening-stock", fromDate, toDate, product],
     queryFn: async () => {
       try {
-        const apiBase = (import.meta as any)?.env?.VITE_API_URL || '';
-        const response = await fetch(`${apiBase}/api/opening-stock`, { credentials: 'include' });
+        const response = await fetch('/api/opening-stock', { credentials: 'include' });
         const text = await response.text();
         let result: any = {};
-        try { result = JSON.parse(text || '{}'); } catch { }
+        try { result = JSON.parse(text || '{}'); } catch {}
         if (!response.ok || !result?.ok) return [] as any[];
-        return result.rows || [];
+      return result.rows || [];
       } catch {
         return [] as any[];
       }
@@ -36,10 +35,10 @@ export default function StockReport() {
 
   const rows = (stockData as any[]) || [];
   const [filter, setFilter] = useState("");
-  const filteredRows = useMemo(() => {
+  const filteredRows = useMemo(()=>{
     if (!filter) return rows;
     const q = filter.toLowerCase();
-    return rows.filter((r: any) => String(r.product || r.product_name || '').toLowerCase().includes(q) || String(r.created_at || r.stock_date || '').toLowerCase().includes(q));
+    return rows.filter((r:any)=> String(r.product||r.product_name||'').toLowerCase().includes(q) || String(r.created_at||r.stock_date||'').toLowerCase().includes(q));
   }, [rows, filter]);
 
   const handleShowTanks = () => {
@@ -70,16 +69,16 @@ export default function StockReport() {
           <div className="grid grid-cols-12 gap-3 items-center">
             <div className="col-span-4 flex items-center gap-3">
               <span className="text-white">From Date</span>
-              <Input type="date" value={fromDate} onChange={(e) => setFromDate(e.target.value)} className="bg-white text-black" />
+              <Input type="date" value={fromDate} onChange={(e)=> setFromDate(e.target.value)} className="bg-white text-black" />
             </div>
             <div className="col-span-4 flex items-center gap-3">
               <span className="text-white">To Date</span>
-              <Input type="date" value={toDate} onChange={(e) => setToDate(e.target.value)} className="bg-white text-black" />
+              <Input type="date" value={toDate} onChange={(e)=> setToDate(e.target.value)} className="bg-white text-black" />
             </div>
             <div className="col-span-3 flex items-center gap-3">
               <span className="text-white">Product</span>
               <Select value={product} onValueChange={setProduct}>
-                <SelectTrigger className="bg-white text-black"><SelectValue placeholder="Select Product" /></SelectTrigger>
+                <SelectTrigger className="bg-white text-black"><SelectValue placeholder="Select Product"/></SelectTrigger>
                 <SelectContent>
                   <SelectItem value="hsd">High Speed Desi</SelectItem>
                   <SelectItem value="ms">Motor Spirit</SelectItem>
@@ -116,11 +115,11 @@ export default function StockReport() {
               <Button variant="outline" size="sm" className="border-red-500 text-red-600">PDF</Button>
               <div className="flex items-center gap-2 ml-4">
                 <span>Filter:</span>
-                <Input placeholder="Type to filter..." className="w-56" value={filter} onChange={(e) => setFilter(e.target.value)} />
+                <Input placeholder="Type to filter..." className="w-56" value={filter} onChange={(e)=> setFilter(e.target.value)} />
               </div>
             </div>
           </div>
-
+          
           <Table>
             <TableHeader>
               <TableRow>
@@ -147,19 +146,19 @@ export default function StockReport() {
                   </TableCell>
                 </TableRow>
               ) : (
-                filteredRows.map((r: any, idx: number) => (
+                filteredRows.map((r:any, idx:number)=> (
                   <TableRow key={r.id || idx}>
                     <TableCell><input type="checkbox" /></TableCell>
-                    <TableCell>{idx + 1}</TableCell>
+                    <TableCell>{idx+1}</TableCell>
                     <TableCell>{r.tank_name || r.product || r.product_name || '-'}</TableCell>
-                    <TableCell className={Number(r.variation_lts || 0) < 0 ? 'text-red-600' : ''}>{Number(r.variation_lts || 0).toLocaleString('en-IN', { minimumFractionDigits: 2 })}</TableCell>
-                    <TableCell className={Number(r.variation_amount || 0) < 0 ? 'text-red-600' : ''}>₹{Number(r.variation_amount || 0).toLocaleString('en-IN', { minimumFractionDigits: 2 })}</TableCell>
+                    <TableCell className={Number(r.variation_lts||0) < 0 ? 'text-red-600' : ''}>{Number(r.variation_lts || 0).toLocaleString('en-IN', { minimumFractionDigits: 2 })}</TableCell>
+                    <TableCell className={Number(r.variation_amount||0) < 0 ? 'text-red-600' : ''}>₹{Number(r.variation_amount || 0).toLocaleString('en-IN', { minimumFractionDigits: 2 })}</TableCell>
                     <TableCell>{Number(r.opening_stock || 0).toLocaleString('en-IN', { minimumFractionDigits: 2 })}</TableCell>
                     <TableCell>{Number(r.receipt_quantity || 0).toLocaleString('en-IN', { minimumFractionDigits: 2 })}</TableCell>
                     <TableCell className="text-blue-600">{Number(r.sale_quantity || 0).toLocaleString('en-IN', { minimumFractionDigits: 2 })}</TableCell>
                     <TableCell className="text-red-600">{Number(r.closing_stock || r.current_closing || 0).toLocaleString('en-IN', { minimumFractionDigits: 2 })}</TableCell>
                     <TableCell>{Number(r.test_quantity || 0).toLocaleString('en-IN', { minimumFractionDigits: 2 })}</TableCell>
-                    <TableCell className={Number(r.shortage || 0) !== 0 ? 'text-red-600' : ''}>{Number(r.shortage || 0).toLocaleString('en-IN', { minimumFractionDigits: 2 })}</TableCell>
+                    <TableCell className={Number(r.shortage||0) !== 0 ? 'text-red-600' : ''}>{Number(r.shortage || 0).toLocaleString('en-IN', { minimumFractionDigits: 2 })}</TableCell>
                     <TableCell>
                       <div className="flex gap-1">
                         <Button variant="outline" size="sm">Edit</Button>
@@ -174,7 +173,7 @@ export default function StockReport() {
               )}
             </TableBody>
           </Table>
-
+          
           {/* Pagination */}
           <div className="flex items-center justify-between mt-4">
             <div className="text-sm text-muted-foreground">Showing {filteredRows.length > 0 ? `1 to ${filteredRows.length} of ${filteredRows.length}` : '0 of 0'} entries</div>
