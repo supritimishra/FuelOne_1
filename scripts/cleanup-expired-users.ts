@@ -5,6 +5,7 @@ import { eq } from 'drizzle-orm';
 import { getTenantById } from '../server/services/tenant-provisioning.js';
 import { getTenantDb } from '../server/services/db-connection-manager.js';
 import { users, userRoles } from '../shared/schema.js';
+import { sql } from 'drizzle-orm';
 
 export async function cleanupExpiredUsers() {
   console.log('🧹 Starting expired user cleanup job...\n');
@@ -56,11 +57,11 @@ export async function cleanupExpiredUsers() {
         if (existingBackupResult.rows.length === 0) {
           // Step 2: Create automatic backup before deletion
           console.log(`   📦 Creating automatic backup...`);
-          
-          const { exportUserData } = await import('../server/routes/developer-mode.js');
+
+          // const { exportUserData } = await import('../server/routes/developer-mode.js');
           // Note: exportUserData is not exported, so we'll need to recreate the logic
           // For now, we'll create a simplified backup
-          
+
           // Get tenant info
           const tenant = await getTenantById(tenantId);
           if (!tenant) {
@@ -69,7 +70,7 @@ export async function cleanupExpiredUsers() {
           }
 
           const tenantDb = getTenantDb(tenant.connectionString, tenantId);
-          
+
           // Find user
           const tenantUserRecords = await masterDb
             .select()
@@ -120,7 +121,7 @@ export async function cleanupExpiredUsers() {
               .select()
               .from(userRoles)
               .where(eq(userRoles.userId, userId));
-            userData.roles = roles;
+            userData.roles = roles as any;
           } catch (err: any) {
             console.warn(`   ⚠️  Failed to export roles: ${err.message}`);
           }
@@ -155,7 +156,7 @@ export async function cleanupExpiredUsers() {
 
         // Step 3: Delete user data from tenant database
         console.log(`   🗑️  Deleting user data from tenant database...`);
-        
+
         const tenant = await getTenantById(tenantId);
         if (!tenant) {
           console.warn(`   ⚠️  Tenant not found, skipping deletion`);
@@ -179,8 +180,7 @@ export async function cleanupExpiredUsers() {
 
           // Delete user feature access
           await tenantDb.execute(
-            `DELETE FROM user_feature_access WHERE user_id = $1`,
-            [userId]
+            sql`DELETE FROM user_feature_access WHERE user_id = ${userId}`
           );
 
           // Delete user record

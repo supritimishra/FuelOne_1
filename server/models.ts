@@ -368,17 +368,14 @@ const CreditCustomerSchema = new Schema<ICreditCustomer>({
     openingDate: { type: Date },
     balanceType: { type: String },
     discountAmount: { type: Number },
-    offerType: { type: String },
-    vehicles: [{
-        vehicleNo: { type: String },
-        vehicleType: { type: String }
-    }],
-    image: { type: String }, // Base64 or URL
-    penaltyInterest: { type: Boolean, default: false },
-    runInterest: { type: Boolean, default: false },
-    graceDays: { type: Number },
-    interestPercentage: { type: Number },
+    vehicles: [{ vehicleNo: String, vehicleType: String }], // New
+    penaltyInterest: { type: Boolean }, // New
+    runInterest: { type: Boolean }, // New
+    graceDays: { type: Number }, // New
+    interestPercentage: { type: Number }, // New
     isActive: { type: Boolean, default: true },
+    offerType: { type: String },
+    image: { type: String }, // Base64 or URL
 }, { timestamps: true });
 
 export const CreditCustomer = mongoose.model<ICreditCustomer>('CreditCustomer', CreditCustomerSchema);

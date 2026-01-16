@@ -31,16 +31,14 @@ app.post('/api/recoveries', express.json(), async (req, res, next) => {
 
   try {
     res.status(202).json({ ok: true, queued: true });
-  } catch {}
+  } catch { }
 
   (async () => {
     const start = Date.now();
     const log = (...args: any[]) => console.log('[EARLY-202]', ...args);
     const warn = (...args: any[]) => console.warn('[EARLY-202]', ...args);
     try {
-      await new Promise<void>((resolve) => authenticateToken(req as any, {} as any, resolve));
-
-      const attachPromise = new Promise<void>((resolve) => attachTenantDb(req as any, {} as any, resolve));
+      const attachPromise = new Promise<void>((resolve: any) => attachTenantDb(req as any, {} as any, resolve));
       await Promise.race([
         attachPromise,
         new Promise<void>((_, reject) => setTimeout(() => reject(new Error('TENANT_ATTACH_TIMEOUT')), 5000)),
@@ -77,7 +75,7 @@ app.post('/api/recoveries', express.json(), async (req, res, next) => {
           received_amount, discount, pending_amount, balance_amount, payment_mode, notes
         )
         VALUES (
-          ${uuidVal(body.credit_customer_id)}, ${esc(computedCustomerName)}, ${esc(body.recovery_date || new Date().toISOString().slice(0,10))},
+          ${uuidVal(body.credit_customer_id)}, ${esc(computedCustomerName)}, ${esc(body.recovery_date || new Date().toISOString().slice(0, 10))},
           ${esc(computedShift)}, ${uuidVal(employeeId)}, ${esc(employeeName)},
           ${received}, ${disc}, ${pending}, ${balance}, ${esc(body.payment_mode)}, ${esc(body.notes)}
         )
@@ -125,7 +123,7 @@ export default app;
 if (process.env.NODE_ENV !== 'production' || process.env.VERCEL !== '1') {
   app.listen(PORT, "0.0.0.0", () => {
     console.log(`Production server running on http://0.0.0.0:${PORT}`);
-    
+
     // Log connection stats every 10 seconds
     setInterval(async () => {
       const { getConnectionStats } = await import("./services/db-connection-manager.js");

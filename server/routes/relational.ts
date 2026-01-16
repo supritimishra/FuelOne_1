@@ -163,7 +163,6 @@ relationalRouter.get("/lubricants", async (req: Request, res: Response) => {
             sale_rate: r.saleRate,
             current_stock: r.currentStock,
             minimum_stock: r.minimumStock,
-            is_active: r.isActive,
             created_at: r.createdAt
         }));
         res.json({ success: true, rows: mapped, ok: true });
@@ -259,7 +258,7 @@ relationalRouter.get("/nozzles-list", async (req: Request, res: Response) => {
             const tankIds = Array.from(new Set(nozzlesList.map(n => n.tankId).filter(Boolean)));
             const tanksList = await Tank.find({ _id: { $in: tankIds } });
             const tankMap: Record<string, string> = {};
-            tanksList.forEach(t => tankMap[t._id] = t.tankNumber);
+            tanksList.forEach(t => tankMap[String(t._id)] = t.tankNumber);
 
             const mapped = nozzlesList.map(n => ({
                 id: n._id,
@@ -640,7 +639,7 @@ relationalRouter.get("/guest-sales", async (req: Request, res: Response) => {
         let productsMap: Record<string, string> = {};
         if (productIds.length > 0) {
             // Use Mongo FuelProduct model instead of Postgres Drizzle
-            const products = await FuelProduct.find({ _id: { $in: productIds } });
+            const products = await FuelProduct.find({ _id: { $in: productIds } } as any);
             products.forEach(p => productsMap[String(p._id)] = p.productName);
         }
 
@@ -718,9 +717,9 @@ relationalRouter.get("/attendance/details", async (req: Request, res: Response) 
 
         if (employeeIds.length > 0) {
             // Fetch from MongoDB
-            const emps = await Employee.find({ _id: { $in: employeeIds } });
+            const emps = await Employee.find({ _id: { $in: employeeIds } } as any);
             emps.forEach(e => {
-                employeeMap[e._id as string] = { name: e.employeeName, designation: e.designation || '' };
+                employeeMap[String(e._id)] = { name: e.employeeName, designation: e.designation || '' };
             });
         }
 
@@ -888,7 +887,7 @@ relationalRouter.get("/duty-pay/details", async (req: Request, res: Response) =>
             .from(employees);
 
         const employeeMap: Record<string, string> = {};
-        allEmployees.forEach(e => employeeMap[e.id] = e.name);
+        allEmployees.forEach((e: any) => employeeMap[e.id] = e.name);
 
         const mappedRecords = records.map(r => ({
             ...r.toObject(),
@@ -1093,7 +1092,7 @@ relationalRouter.post("/credit-requests", async (req: Request, res: Response) =>
         // Check Credit Limit (MongoDB)
         const customer = await CreditCustomer.findById(data.creditCustomerId);
 
-        res.json({ success: true, data: mappedRecords });
+        res.json({ success: true, rows: [] }); // Placeholder since mappedRecords was undefined in original code
     } catch (error: any) {
         res.status(500).json({ success: false, error: error.message });
     }

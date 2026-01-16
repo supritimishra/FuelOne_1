@@ -32,7 +32,6 @@ export function startCleanupScheduler(): void {
       console.error('[CleanupScheduler] Cleanup job failed:', error?.message || error);
     }
   }, {
-    scheduled: true,
     timezone: 'UTC'
   });
 

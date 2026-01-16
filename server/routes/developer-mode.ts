@@ -2685,7 +2685,7 @@ developerModeRouter.put("/users/:email/password", requireSuperAdmin, async (req:
     }
 
     console.log(`[DeveloperMode] User ${userEmail} exists in ${tenantUserRecords.length} tenant(s)`);
-    tenantUserRecords.forEach((tu, index) => {
+    tenantUserRecords.forEach((tu: any, index: number) => {
       console.log(`[DeveloperMode]   Tenant ${index + 1}: ${tu.tenantId}`);
     });
 
@@ -2700,7 +2700,7 @@ developerModeRouter.put("/users/:email/password", requireSuperAdmin, async (req:
 
     console.log(`[DeveloperMode] Updating password for ${tenantUserRecords.length} tenant(s) in parallel...`);
 
-    const updatePromises = tenantUserRecords.map(async (tenantUser) => {
+    const updatePromises = tenantUserRecords.map(async (tenantUser: any) => {
       const tenantId = tenantUser.tenantId;
       const startTime = Date.now();
 
@@ -2792,7 +2792,7 @@ developerModeRouter.put("/users/:email/password", requireSuperAdmin, async (req:
       console.error(`[DeveloperMode] ❌ Error during tenant updates:`, error?.message || error);
       // Ensure we have at least some results
       if (results.length === 0) {
-        tenantUserRecords.forEach((tu) => {
+        tenantUserRecords.forEach((tu: any) => {
           results.push({ tenantId: tu.tenantId, success: false, error: error?.message || 'Unknown error' });
         });
       }
