@@ -37,7 +37,11 @@ saleEntriesRouter.get("/nozzles-with-last-readings", async (req: Request, res: R
                 rateDate: { $gte: new Date(dateStr), $lte: new Date(dateStr + "T23:59:59") }
             });
             const ratesMap = new Map();
+<<<<<<< HEAD
             rates.forEach(r => ratesMap.set(r.fuelProductId, r.closeRate));
+=======
+            rates.forEach((r: any) => ratesMap.set(r.fuelProductId, r.closeRate));
+>>>>>>> b1b708d (Fix typescript errors and deployment issues)
 
             const rows = await Promise.all(activeNozzles.map(async (n) => {
                 // Get last closing reading
@@ -80,9 +84,15 @@ saleEntriesRouter.get("/nozzles-with-last-readings", async (req: Request, res: R
             .where(eq(dailySaleRates.rateDate, dateStr));
 
         const ratesMap = new Map();
+<<<<<<< HEAD
         rates.forEach(r => ratesMap.set(r.fuelProductId, r.closeRate));
 
         const rows = await Promise.all(activeNozzles.map(async (n) => {
+=======
+        rates.forEach((r: any) => ratesMap.set(r.fuelProductId, r.closeRate));
+
+        const rows = await Promise.all(activeNozzles.map(async (n: any) => {
+>>>>>>> b1b708d (Fix typescript errors and deployment issues)
             // Get last closing reading
             const lastEntry = await db.select({ closingReading: saleEntries.closingReading })
                 .from(saleEntries)

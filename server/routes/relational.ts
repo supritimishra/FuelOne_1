@@ -35,7 +35,11 @@ import {
     InterestTransaction, SheetRecord, TankerSale, GuestSale,
     Attendance, DutyPayRecord, SalesOfficerInspection, CreditRequest,
     ExpiryItem, Feedback, DayCashMovement, CreditCustomer, FuelProduct, Employee, ExpenseType,
+<<<<<<< HEAD
     Tank, Nozzle, LubricantProduct
+=======
+    Tank, Nozzle, LubricantProduct, TankDailyReading
+>>>>>>> b1b708d (Fix typescript errors and deployment issues)
 } from "../models.js";
 
 export const relationalRouter = Router();
@@ -1117,7 +1121,11 @@ relationalRouter.post("/sales-officer", async (req: Request, res: Response) => {
     }
 });
 
+<<<<<<< HEAD
 import { tankDailyReadings, insertTankDailyReadingSchema, tanks } from "../../shared/schema.js";
+=======
+import { tankDailyReadings, insertTankDailyReadingSchema } from "../../shared/schema.js";
+>>>>>>> b1b708d (Fix typescript errors and deployment issues)
 
 // ==========================================
 // 3.22 Tank Daily Readings (MongoDB Replacement)
@@ -1213,7 +1221,11 @@ relationalRouter.get("/tank-daily-readings", async (req: Request, res: Response)
         const results = await TankDailyReading.find(conditions).sort({ readingDate: -1 });
 
         // Generate Report
+<<<<<<< HEAD
         const report = await Promise.all(results.map(async (r) => {
+=======
+        const report = await Promise.all(results.map(async (r: any) => {
+>>>>>>> b1b708d (Fix typescript errors and deployment issues)
             // Fetch Receipts (TankerSale)
             // Use TankerSale (Mongo)
             const receipts = await TankerSale.find({
@@ -1279,7 +1291,11 @@ relationalRouter.get("/credit-requests", async (req: Request, res: Response) => 
         const requests = await CreditRequest.find(conditions).sort({ requestDate: -1 });
 
         // Join with CreditCustomers (MongoDB)
+<<<<<<< HEAD
         const customerIds = Array.from(new Set(requests.map(r => r.creditCustomerId).filter(Boolean)));
+=======
+        const customerIds = Array.from(new Set(requests.map(r => r.creditCustomerId))).filter((id): id is string => !!id);
+>>>>>>> b1b708d (Fix typescript errors and deployment issues)
         let customerMap: Record<string, any> = {};
 
         if (customerIds.length > 0) {
@@ -1288,7 +1304,11 @@ relationalRouter.get("/credit-requests", async (req: Request, res: Response) => 
         }
 
         // Join with FuelProducts (MongoDB)
+<<<<<<< HEAD
         const productIds = Array.from(new Set(requests.map(r => r.fuelProductId).filter(Boolean)));
+=======
+        const productIds = Array.from(new Set(requests.map(r => r.fuelProductId))).filter((id): id is string => !!id);
+>>>>>>> b1b708d (Fix typescript errors and deployment issues)
         let productMap: Record<string, string> = {};
 
         if (productIds.length > 0) {
@@ -1588,14 +1608,22 @@ relationalRouter.get("/expiry-items", async (req: Request, res: Response) => {
                 issue_date: r.issueDate,
                 expiry_date: r.expiryDate, // Ensure field matches frontend expectation
                 category_name: (r as any).category || '',
+<<<<<<< HEAD
                 created_at: r.createdAt,
+=======
+                created_at: (r as any).createdAt,
+>>>>>>> b1b708d (Fix typescript errors and deployment issues)
                 s_no: index + 1
             }));
             return res.json({ success: true, rows: mapped, ok: true });
         }
 
         const results = await db.select().from(expiryItems).orderBy(desc(expiryItems.createdAt));
+<<<<<<< HEAD
         const mapped = results.map((r, index) => ({
+=======
+        const mapped = results.map((r: any, index: any) => ({
+>>>>>>> b1b708d (Fix typescript errors and deployment issues)
             ...r,
             item_name: r.itemName,
             issue_date: r.issueDate,
@@ -1649,7 +1677,11 @@ relationalRouter.delete("/expiry-items/:id", async (req: Request, res: Response)
 relationalRouter.get("/categories", async (req: Request, res: Response) => {
     try {
         const results = await db.select().from(expiryCategories).where(eq(expiryCategories.isActive, true));
+<<<<<<< HEAD
         const mapped = results.map(r => ({
+=======
+        const mapped = results.map((r: any) => ({
+>>>>>>> b1b708d (Fix typescript errors and deployment issues)
             ...r,
             category_name: r.categoryName,
             created_at: r.createdAt
@@ -1691,7 +1723,11 @@ relationalRouter.delete("/categories/:id", async (req: Request, res: Response) =
 relationalRouter.get("/employees", async (req: Request, res: Response) => {
     try {
         const results = await Employee.find({ isActive: true }).sort({ createdAt: -1 });
+<<<<<<< HEAD
         const mapped = results.map(r => ({
+=======
+        const mapped = results.map((r: any) => ({
+>>>>>>> b1b708d (Fix typescript errors and deployment issues)
             ...r.toObject(),
             id: r._id,
             join_date: r.joinDate,
