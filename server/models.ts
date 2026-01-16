@@ -347,7 +347,7 @@ export interface ICreditCustomer extends Document {
 }
 
 const CreditCustomerSchema = new Schema<ICreditCustomer>({
-    _id: { type: String, required: true }, // Allow string UUIDs
+    _id: { type: String, required: true } as any, // Allow string UUIDs
     organizationName: { type: String, required: true },
     phoneNumber: { type: String },
     mobileNumber: { type: String },
@@ -395,7 +395,7 @@ export interface IFuelProduct extends Document {
 }
 
 const FuelProductSchema = new Schema<IFuelProduct>({
-    _id: { type: String, required: true }, // Allow string UUIDs from Postgres
+    _id: { type: String, required: true } as any, // Allow string UUIDs from Postgres
     productName: { type: String, required: true },
     shortName: { type: String, required: true },
     gstPercentage: { type: Number },
@@ -423,7 +423,7 @@ export interface ILubricantProduct extends Document {
 }
 
 const LubricantProductSchema = new Schema<ILubricantProduct>({
-    _id: { type: String, required: true }, // Allow string UUIDs
+    _id: { type: String, required: true } as any, // Allow string UUIDs
     productName: { type: String, required: true },
     gstPercentage: { type: Number },
     hsnCode: { type: String },
@@ -461,7 +461,7 @@ export interface IEmployee extends Document {
 }
 
 const EmployeeSchema = new Schema<IEmployee>({
-    _id: { type: String, required: true }, // Allow string UUIDs
+    _id: { type: String, required: true } as any, // Allow string UUIDs
     joinDate: { type: Date, required: true },
     employeeName: { type: String, required: true },
     employeeNumber: { type: String },
