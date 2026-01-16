@@ -39,14 +39,14 @@ export function clearTenantCache(tenantId: string): void {
  */
 export function getTenantPool(connectionString: string, tenantId: string): Pool {
   let pool = tenantConnectionPools.get(tenantId);
-  
+
   if (!pool) {
     pool = new Pool({
       connectionString,
       ssl: { rejectUnauthorized: false },
       ...POOL_CONFIG,
     });
-    
+
     // Handle pool errors with better logging
     pool.on('error', (err: any) => {
       console.error(`Database pool error for tenant ${tenantId}:`, {
@@ -55,7 +55,7 @@ export function getTenantPool(connectionString: string, tenantId: string): Pool 
         severity: err.severity,
         timestamp: new Date().toISOString()
       });
-      
+
       // If it's a connection error, remove the pool to force recreation
       if (err.code === 'ETIMEDOUT' || err.code === 'ECONNREFUSED' || err.code === 'ENOTFOUND') {
         console.log(`🔄 Removing failed pool for tenant ${tenantId} to force recreation`);
@@ -63,26 +63,26 @@ export function getTenantPool(connectionString: string, tenantId: string): Pool 
         tenantDbInstances.delete(tenantId);
       }
     });
-    
+
     // Handle connect events
-    pool.on('connect', (client) => {
+    pool.on('connect', (client: any) => {
       console.log(`🔗 New connection established for tenant ${tenantId}`);
     });
-    
+
     // Handle acquire events
-    pool.on('acquire', (client) => {
+    pool.on('acquire', (client: any) => {
       console.log(`📥 Connection acquired from pool for tenant ${tenantId}`);
     });
-    
+
     // Handle remove events
-    pool.on('remove', (client) => {
+    pool.on('remove', (client: any) => {
       console.log(`📤 Connection removed from pool for tenant ${tenantId}`);
     });
-    
+
     tenantConnectionPools.set(tenantId, pool);
     console.log(`✅ Created connection pool for tenant: ${tenantId}`);
   }
-  
+
   return pool;
 }
 
@@ -94,14 +94,14 @@ export function getTenantDb(
   tenantId: string
 ): NodePgDatabase<typeof schema> {
   let db = tenantDbInstances.get(tenantId);
-  
+
   if (!db) {
     const pool = getTenantPool(connectionString, tenantId);
     db = drizzle({ client: pool, schema });
     tenantDbInstances.set(tenantId, db);
     console.log(`✅ Created Drizzle instance for tenant: ${tenantId}`);
   }
-  
+
   return db;
 }
 
@@ -110,7 +110,7 @@ export function getTenantDb(
  */
 export async function closeTenantDb(tenantId: string): Promise<void> {
   const pool = tenantConnectionPools.get(tenantId);
-  
+
   if (pool) {
     await pool.end();
     tenantConnectionPools.delete(tenantId);
@@ -124,11 +124,11 @@ export async function closeTenantDb(tenantId: string): Promise<void> {
  */
 export async function closeAllTenantConnections(): Promise<void> {
   console.log(`Closing ${tenantConnectionPools.size} tenant connection pools...`);
-  
+
   const closePromises = Array.from(tenantConnectionPools.keys()).map(
     tenantId => closeTenantDb(tenantId)
   );
-  
+
   await Promise.all(closePromises);
   console.log('✅ All tenant connections closed');
 }
@@ -154,7 +154,7 @@ export function getConnectionStats(): {
       waitingCount: pool.waitingCount,
     })
   );
-  
+
   return {
     activeTenants: tenantConnectionPools.size,
     totalPools: tenantConnectionPools.size,
@@ -181,13 +181,13 @@ async function retryWithBackoff<T>(
   baseDelay: number = 1000
 ): Promise<T> {
   let lastError: Error;
-  
+
   for (let attempt = 0; attempt <= maxRetries; attempt++) {
     try {
       return await operation();
     } catch (error) {
       lastError = error as Error;
-      
+
       // Don't retry on certain errors
       if (error && typeof error === 'object' && 'code' in error) {
         const errorCode = (error as any).code;
@@ -195,17 +195,17 @@ async function retryWithBackoff<T>(
           throw error;
         }
       }
-      
+
       if (attempt === maxRetries) {
         throw lastError;
       }
-      
+
       const delay = baseDelay * Math.pow(2, attempt);
       console.log(`🔄 Retry attempt ${attempt + 1}/${maxRetries + 1} after ${delay}ms delay`);
       await new Promise(resolve => setTimeout(resolve, delay));
     }
   }
-  
+
   throw lastError!;
 }
 
@@ -234,12 +234,12 @@ let isShuttingDown = false;
 
 export async function gracefulShutdown(): Promise<void> {
   if (isShuttingDown) return;
-  
+
   isShuttingDown = true;
   console.log('🛑 Initiating graceful shutdown of tenant connections...');
-  
+
   await closeAllTenantConnections();
-  
+
   console.log('✅ Graceful shutdown complete');
 }
 
