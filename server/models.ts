@@ -279,10 +279,7 @@ export interface IExpiryItem extends Document {
     issueDate?: Date;
     expiryDate?: Date;
     status?: string; // 'Active', 'Expired'
-<<<<<<< HEAD
-=======
     createdAt: Date;
->>>>>>> b1b708d (Fix typescript errors and deployment issues)
 }
 
 const ExpiryItemSchema = new Schema<IExpiryItem>({
