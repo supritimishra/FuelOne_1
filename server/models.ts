@@ -337,6 +337,7 @@ export interface ICreditCustomer extends Document {
     balanceType?: string; // New (Due/Excess)
     discountAmount?: number; // New
     offerType?: string; // New
+    image?: string; // New
     vehicles?: { vehicleNo: string; vehicleType: string }[]; // New
     penaltyInterest?: boolean; // New
     runInterest?: boolean; // New
