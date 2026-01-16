@@ -68,7 +68,6 @@ export default function VendorTransactions() {
         transaction_type: transactionData.transaction_type,
         payment_mode: transactionData.payment_mode,
         description: transactionData.description,
-        description: transactionData.description,
         transaction_date: transactionData.transaction_date,
         employee_id: transactionData.employee_id || null,
       };
