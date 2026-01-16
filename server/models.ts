@@ -495,7 +495,7 @@ export interface IExpenseType extends Document {
 }
 
 const ExpenseTypeSchema = new Schema<IExpenseType>({
-    _id: { type: String, required: true },
+    _id: { type: String, required: true } as any,
     expenseName: { type: String, required: true },
     effectType: { type: String, required: true },
     option: { type: String },
@@ -580,7 +580,7 @@ export interface ITank extends Document {
 }
 
 const TankSchema = new Schema<ITank>({
-    _id: { type: String, required: true }, // Allow string UUIDs
+    _id: { type: String, required: true } as any, // Allow string UUIDs
     tankNumber: { type: String, required: true },
     fuelProductId: { type: String, required: true },
     capacity: { type: Number, default: 0 },
@@ -603,7 +603,7 @@ export interface INozzle extends Document {
 }
 
 const NozzleSchema = new Schema<INozzle>({
-    _id: { type: String, required: true }, // Allow string UUIDs
+    _id: { type: String, required: true } as any, // Allow string UUIDs
     nozzleNumber: { type: String, required: true },
     pumpStation: { type: String },
     tankId: { type: String },
@@ -648,7 +648,7 @@ export interface IDutyShift extends Document {
 }
 
 const DutyShiftSchema = new Schema<IDutyShift>({
-    _id: { type: String, required: true },
+    _id: { type: String, required: true } as any,
     shiftName: { type: String, required: true },
     startTime: { type: String },
     endTime: { type: String },

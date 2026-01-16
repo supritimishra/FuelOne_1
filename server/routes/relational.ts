@@ -155,7 +155,7 @@ relationalRouter.get("/lubricants", async (req: Request, res: Response) => {
         // Postgres Path
         const results = await db.select().from(lubricantsTable).where(eq(lubricantsTable.isActive, true));
 
-        const mapped = results.map(r => ({
+        const mapped = results.map((r: any) => ({
             id: r.id,
             lubricant_name: r.lubricantName,
             gst_percentage: r.gstPercentage,
@@ -314,7 +314,7 @@ relationalRouter.get("/employees", async (req: Request, res: Response) => {
 
         // Postgres Path
         const results = await db.select().from(employees).where(eq(employees.isActive, true));
-        const mapped = results.map(r => ({
+        const mapped = results.map((r: any) => ({
             ...r,
             id: r.id,
             employee_name: r.employeeName,
