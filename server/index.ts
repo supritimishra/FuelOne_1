@@ -278,9 +278,6 @@ app.use((req, res, next) => {
     const vite = await createViteServer({
       server: {
         middlewareMode: true,
-        hmr: false, // Completely disable HMR for TestSprite compatibility
-        ws: false, // Disable WebSocket server entirely
-        port: 8080, // Explicitly set port
       },
       // Use custom app type but allow Vite client for development
       appType: "custom",

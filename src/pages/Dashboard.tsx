@@ -45,12 +45,10 @@ export default function Dashboard() {
   const queryClient = useQueryClient();
 
   // Fetch today's sales data
-  const { data: todaySales, isLoading: loadingSales, isError: salesError } = useQuery({
+  const { data: todaySales, isLoading: loadingSales, isError: salesError } = useQuery<{ fuelSale: number, creditSale: number, discountOffered: number }>({
     queryKey: ["dashboard-today-sales", selectedDate],
     queryFn: async () => {
       try {
-        console.log('Fetching today sales for date:', selectedDate);
-        
         // Use Promise.allSettled to ensure both requests are attempted even if one fails
         // Add 5 second timeout to prevent infinite loading
         const [guestResult, creditResult] = await Promise.allSettled([
@@ -65,54 +63,42 @@ export default function Dashboard() {
           fetchWithTimeout(
             `/api/credit-sales?from=${selectedDate}&to=${selectedDate}`,
             {
-          credentials: 'include',
-          headers: { 'Content-Type': 'application/json' }
+              credentials: 'include',
+              headers: { 'Content-Type': 'application/json' }
             },
             5000
           )
         ]);
-        
+
         let guestRows: any[] = [];
         let creditRows: any[] = [];
-        
-        // Handle guest sales response
+
         if (guestResult.status === 'fulfilled') {
           const guestResponse = guestResult.value;
           if (guestResponse.ok) {
             const guestJson = await guestResponse.json();
             guestRows = guestJson?.ok ? (guestJson.rows || []) : [];
-            console.log('Guest sales response:', guestJson);
-          } else {
-            console.warn('Guest sales API returned non-ok status:', guestResponse.status);
           }
-        } else {
-          console.warn('Guest sales API request failed:', guestResult.reason);
         }
-        
+
         // Handle credit sales response
         if (creditResult.status === 'fulfilled') {
           const creditResponse = creditResult.value;
           if (creditResponse.ok) {
-        const creditJson = await creditResponse.json();
+            const creditJson = await creditResponse.json();
             creditRows = creditJson?.ok ? (creditJson.rows || []) : [];
-        console.log('Credit sales response:', creditJson);
-          } else {
-            console.warn('Credit sales API returned non-ok status:', creditResponse.status);
           }
-        } else {
-          console.warn('Credit sales API request failed:', creditResult.reason);
         }
 
         const fuelSale = guestRows.reduce((sum: number, s: any) => sum + Number(s.total_amount || 0), 0);
         const creditSale = creditRows.reduce((sum: number, s: any) => sum + Number(s.total_amount || 0), 0);
-        
+
         const result = {
           fuelSale,
           creditSale,
           discountOffered: 0
         };
-        
-        console.log('Today sales calculated:', result);
+
         return result;
       } catch (error) {
         console.error('Error fetching today sales:', error);
@@ -122,11 +108,7 @@ export default function Dashboard() {
     },
     retry: 1,
     refetchInterval: 30000, // Auto-refresh every 30 seconds
-    onError: (error) => {
-      console.warn('Today sales query failed, using defaults:', error);
-    },
     // Don't block dashboard rendering if this query fails
-    suspense: false,
   });
 
   // Fetch lubricant sales data
@@ -137,8 +119,8 @@ export default function Dashboard() {
         const response = await fetchWithTimeout(
           `/api/lubricant-sales?from=${selectedDate}&to=${selectedDate}`,
           {
-          credentials: 'include',
-          headers: { 'Content-Type': 'application/json' }
+            credentials: 'include',
+            headers: { 'Content-Type': 'application/json' }
           },
           15000
         );
@@ -162,20 +144,20 @@ export default function Dashboard() {
         const response = await fetchWithTimeout(
           `/api/swipe-transactions?from=${selectedDate}&to=${selectedDate}`,
           {
-          credentials: 'include',
-          headers: { 'Content-Type': 'application/json' }
+            credentials: 'include',
+            headers: { 'Content-Type': 'application/json' }
           },
           5000
         );
-        
+
         if (!response.ok) {
           console.warn(`Swipe transactions API returned ${response.status}, using empty data`);
           return 0;
         }
-        
+
         const result = await response.json();
         const swipes = result?.ok ? (result.rows || []) : [];
-        
+
         // Use 'amount' field instead of 'swipe_amount'
         return swipes.reduce((sum: number, s: any) => sum + Number(s.amount || s.swipe_amount || 0), 0);
       } catch (error) {
@@ -186,9 +168,6 @@ export default function Dashboard() {
     retry: 1,
     refetchInterval: 30000,
     // Don't fail the entire dashboard if this query fails
-    onError: (error) => {
-      console.warn('Swipe transactions query failed, continuing with 0:', error);
-    }
   });
 
   // Fetch recovery data
@@ -199,8 +178,8 @@ export default function Dashboard() {
         const response = await fetchWithTimeout(
           `/api/recoveries?from=${selectedDate}&to=${selectedDate}`,
           {
-          credentials: 'include',
-          headers: { 'Content-Type': 'application/json' }
+            credentials: 'include',
+            headers: { 'Content-Type': 'application/json' }
           },
           15000
         );
@@ -225,9 +204,6 @@ export default function Dashboard() {
     retry: 1,
     refetchInterval: 30000,
     // Don't fail the entire dashboard if this query fails
-    onError: (error) => {
-      // Silently handle - we already return 0 in the catch block
-    }
   });
 
   // Fetch expenses data
@@ -238,8 +214,8 @@ export default function Dashboard() {
         const response = await fetchWithTimeout(
           `/api/expenses?from=${selectedDate}&to=${selectedDate}`,
           {
-          credentials: 'include',
-          headers: { 'Content-Type': 'application/json' }
+            credentials: 'include',
+            headers: { 'Content-Type': 'application/json' }
           },
           5000
         );
@@ -263,34 +239,34 @@ export default function Dashboard() {
         const guestResponse = await fetchWithTimeout(
           `/api/guest-sales?from=${selectedDate}&to=${selectedDate}`,
           {
-          credentials: 'include',
-          headers: { 'Content-Type': 'application/json' }
+            credentials: 'include',
+            headers: { 'Content-Type': 'application/json' }
           },
           5000
         );
-        
+
         const guestJson = guestResponse.ok ? await guestResponse.json() : { ok: true, rows: [] };
         const guestRows = guestJson?.ok ? (guestJson.rows || []) : [];
 
         // Calculate cash from guest sales (CASH mode)
         let cashFromGuest = guestRows.filter((s: any) => s.payment_mode === 'CASH' || s.payment_mode === 'Cash')
           .reduce((sum: number, s: any) => sum + Number(s.total_amount || 0), 0);
-        
+
         // Add lubricant cash sales to cash total
         const lubCashSales = lubricantSales || 0;
         const cash = cashFromGuest + lubCashSales;
-        
+
         // Credit sales from guest sales
         const credit = guestRows.filter((s: any) => s.payment_mode === 'CREDIT' || s.payment_mode === 'Credit')
           .reduce((sum: number, s: any) => sum + Number(s.total_amount || 0), 0);
-        
+
         // Bank payments (CARD/UPI from guest sales + swipe transactions)
         const bankFromGuest = guestRows.filter((s: any) => s.payment_mode === 'CARD' || s.payment_mode === 'Card' || s.payment_mode === 'UPI')
           .reduce((sum: number, s: any) => sum + Number(s.total_amount || 0), 0);
         const bank = bankFromGuest + (swipeData || 0);
-        
+
         const vendor = 0; // TODO: Add vendor payment API when available
-        
+
         return {
           cash,
           credit,
@@ -316,15 +292,15 @@ export default function Dashboard() {
         const response = await fetchWithTimeout(
           '/api/fuel-products',
           {
-          credentials: 'include',
-          headers: { 'Content-Type': 'application/json' }
+            credentials: 'include',
+            headers: { 'Content-Type': 'application/json' }
           },
           5000
         );
-        
+
         const result = await response.json();
         const products = result?.ok ? (result.rows || []) : [];
-        
+
         // Return empty array since data was cleared
         return [];
       } catch (error) {
@@ -343,18 +319,18 @@ export default function Dashboard() {
         const endDate = new Date();
         const startDate = new Date();
         startDate.setMonth(startDate.getMonth() - 11);
-        
+
         const response = await fetchWithTimeout(
           `/api/guest-sales?from=${startDate.toISOString().split('T')[0]}&to=${endDate.toISOString().split('T')[0]}`,
           {
-          credentials: 'include',
-          headers: { 'Content-Type': 'application/json' }
+            credentials: 'include',
+            headers: { 'Content-Type': 'application/json' }
           },
           5000
         );
         const result = await response.json();
         const sales = result?.ok ? (result.rows || []) : [];
-        
+
         // Group by month and calculate totals
         const monthlyData: { [key: string]: number } = {};
         sales.forEach((sale: any) => {
@@ -363,7 +339,7 @@ export default function Dashboard() {
           if (!monthlyData[month]) monthlyData[month] = 0;
           monthlyData[month] += Number(sale.total_amount || 0);
         });
-        
+
         // Return ordered by month
         const months = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
         return months.map(month => ({ month, amount: monthlyData[month] || 0 }));
@@ -381,29 +357,25 @@ export default function Dashboard() {
     queryFn: async () => {
       try {
         console.log('Fetching credit customers...');
-        
+
         const response = await fetchWithTimeout(
           '/api/credit-customers',
           {
-          credentials: 'include',
-          headers: { 'Content-Type': 'application/json' }
+            credentials: 'include',
+            headers: { 'Content-Type': 'application/json' }
           },
           5000
         );
-        
+
         if (!response.ok) {
           console.error('Credit customers API error:', response.status, response.statusText);
           throw new Error(`Credit customers API failed: ${response.statusText}`);
         }
-        
+
         const result = await response.json();
-        console.log('Credit customers response:', result);
-        
         const customers = result?.ok ? (result.rows || []) : [];
-        
-        const activeCustomers = customers.filter((c: any) => c.is_active).slice(0, 10);
-        console.log('Active credit customers:', activeCustomers);
-        
+        const activeCustomers = customers.filter((c: any) => c?.is_active).slice(0, 10);
+
         return activeCustomers;
       } catch (error) {
         console.error('Error fetching credit customers:', error);
@@ -412,11 +384,10 @@ export default function Dashboard() {
     },
     retry: 1,
     refetchInterval: 30000,
-    onError: (error) => console.error('Credit customers query failed:', error)
   });
 
   // Calculate credit outstanding total
-  const creditOutstanding = creditCustomers?.reduce((sum: number, c: any) => 
+  const creditOutstanding = creditCustomers?.reduce((sum: number, c: any) =>
     sum + Number(c.current_balance || 0), 0) || 0;
 
   // Fetch customer last payments
@@ -460,11 +431,12 @@ export default function Dashboard() {
             onChange={(e) => setSelectedDate(e.target.value)}
             className="w-40"
           />
-          <Button 
-            variant="outline" 
+          <Button
+            variant="outline"
             size="sm"
-            onClick={() => queryClient.invalidateQueries({ predicate: (query) => 
-              query.queryKey[0]?.toString().startsWith('dashboard-') 
+            onClick={() => queryClient.invalidateQueries({
+              predicate: (query) =>
+                query.queryKey[0]?.toString().startsWith('dashboard-')
             })}
           >
             <RefreshCw className="h-4 w-4 mr-2" />
@@ -501,7 +473,7 @@ export default function Dashboard() {
               <>
                 <div className="flex justify-between">
                   <span>Fuel Sale:</span>
-                  <span className="font-semibold">₹{todaySales?.fuelSale?.toLocaleString() || 0}</span>
+                  <span className="font-semibold">₹{(todaySales as any)?.fuelSale?.toLocaleString() || 0}</span>
                 </div>
                 <div className="flex justify-between">
                   <span>Lub Sale:</span>
@@ -509,12 +481,12 @@ export default function Dashboard() {
                 </div>
                 <div className="flex justify-between">
                   <span>Discount Offered:</span>
-                  <span className="font-semibold">₹{todaySales?.discountOffered?.toLocaleString() || 0}</span>
+                  <span className="font-semibold">₹{(todaySales as any)?.discountOffered?.toLocaleString() || 0}</span>
                 </div>
                 <hr />
                 <div className="flex justify-between text-lg font-bold">
                   <span>Total:</span>
-                  <span>₹{((todaySales?.fuelSale || 0) + (lubricantSales || 0) + (todaySales?.creditSale || 0)).toLocaleString()}</span>
+                  <span>₹{(((todaySales as any)?.fuelSale || 0) + (lubricantSales || 0) + ((todaySales as any)?.creditSale || 0)).toLocaleString()}</span>
                 </div>
               </>
             )}
@@ -538,11 +510,11 @@ export default function Dashboard() {
                   <span>{item.product}</span>
                   <span>{item.qty}</span>
                   <span>₹{item.amount.toLocaleString()}</span>
-            </div>
+                </div>
               ))}
-          </div>
-        </CardContent>
-      </Card>
+            </div>
+          </CardContent>
+        </Card>
 
         {/* Day Sale Flow Card */}
         <Card>
@@ -557,27 +529,27 @@ export default function Dashboard() {
             <div className="flex justify-between">
               <span>Credit:</span>
               <span className="font-semibold">₹{daySaleFlow?.credit?.toLocaleString() || 0}</span>
-                          </div>
+            </div>
             <div className="flex justify-between">
               <span>Bank:</span>
               <span className="font-semibold">₹{daySaleFlow?.bank?.toLocaleString() || 0}</span>
-                        </div>
+            </div>
             <div className="flex justify-between">
               <span>Vendor:</span>
               <span className="font-semibold">₹{daySaleFlow?.vendor?.toLocaleString() || 0}</span>
-                      </div>
+            </div>
             <div className="flex justify-between">
               <span>Sale Disc.:</span>
               <span className="font-semibold">₹{daySaleFlow?.saleDisc?.toLocaleString() || 0}</span>
-                    </div>
+            </div>
             <hr />
             <div className="flex justify-between text-lg font-bold">
               <span>Total:</span>
               <span>₹{daySaleFlow?.total?.toLocaleString() || 0}</span>
-                  </div>
-                </CardContent>
-              </Card>
-          </div>
+            </div>
+          </CardContent>
+        </Card>
+      </div>
 
       {/* Pie Charts Section */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
@@ -585,11 +557,11 @@ export default function Dashboard() {
         <Card>
           <CardHeader>
             <CardTitle>Day Sale Flow</CardTitle>
-            </CardHeader>
+          </CardHeader>
           <CardContent>
             <ResponsiveContainer width="100%" height={300}>
-                <RechartsPieChart>
-                  <Pie 
+              <RechartsPieChart>
+                <Pie
                   data={[
                     { name: "Cash", value: daySaleFlow?.cash || 0 },
                     { name: "Credit", value: daySaleFlow?.credit || 0 },
@@ -602,7 +574,7 @@ export default function Dashboard() {
                   label={({ name, percent }) => `${name} ${(percent * 100).toFixed(1)}%`}
                   outerRadius={80}
                   fill="#8884d8"
-                    dataKey="value" 
+                  dataKey="value"
                 >
                   {[0, 1, 2, 3].map((entry, index) => (
                     <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
@@ -610,20 +582,20 @@ export default function Dashboard() {
                 </Pie>
                 <Tooltip />
                 <Legend />
-                </RechartsPieChart>
-              </ResponsiveContainer>
-            </CardContent>
-          </Card>
+              </RechartsPieChart>
+            </ResponsiveContainer>
+          </CardContent>
+        </Card>
 
         {/* Day Bank Flow Pie Chart */}
         <Card>
           <CardHeader>
             <CardTitle>Day Bank Flow</CardTitle>
-            </CardHeader>
+          </CardHeader>
           <CardContent>
             <ResponsiveContainer width="100%" height={300}>
-                <RechartsPieChart>
-                  <Pie 
+              <RechartsPieChart>
+                <Pie
                   data={[{ name: "PNB CURRENT", value: daySaleFlow?.bank || 0 }]}
                   cx="50%"
                   cy="50%"
@@ -631,17 +603,17 @@ export default function Dashboard() {
                   label={({ name, percent }) => `${name} ${(percent * 100).toFixed(1)}%`}
                   outerRadius={80}
                   fill="#8884d8"
-                    dataKey="value" 
+                  dataKey="value"
                 >
                   <Cell fill="#0088FE" />
                 </Pie>
                 <Tooltip />
                 <Legend />
-                </RechartsPieChart>
-              </ResponsiveContainer>
-            </CardContent>
-          </Card>
-        </div>
+              </RechartsPieChart>
+            </ResponsiveContainer>
+          </CardContent>
+        </Card>
+      </div>
 
       {/* Charts Section */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
@@ -649,33 +621,33 @@ export default function Dashboard() {
         <Card>
           <CardHeader>
             <CardTitle>Monthly Sale</CardTitle>
-            </CardHeader>
+          </CardHeader>
           <CardContent>
-              <ResponsiveContainer width="100%" height={300}>
+            <ResponsiveContainer width="100%" height={300}>
               <BarChart data={monthlySales}>
                 <CartesianGrid strokeDasharray="3 3" />
                 <XAxis dataKey="month" />
                 <YAxis />
                 <Tooltip />
                 <Bar dataKey="amount" fill="#FF8042" />
-                </BarChart>
-              </ResponsiveContainer>
-            </CardContent>
-          </Card>
+              </BarChart>
+            </ResponsiveContainer>
+          </CardContent>
+        </Card>
 
         {/* Day Summary Chart */}
         <Card>
           <CardHeader>
             <CardTitle>Day Summary</CardTitle>
-            </CardHeader>
+          </CardHeader>
           <CardContent>
-              <ResponsiveContainer width="100%" height={300}>
-              <BarChart 
+            <ResponsiveContainer width="100%" height={300}>
+              <BarChart
                 data={[
-                  { name: "Sale Amount", value: (todaySales?.fuelSale || 0) + (lubricantSales || 0) + (todaySales?.creditSale || 0) },
+                  { name: "Sale Amount", value: ((todaySales as any)?.fuelSale || 0) + (lubricantSales || 0) + ((todaySales as any)?.creditSale || 0) },
                   { name: "Swipes", value: swipeData || 0 },
                   { name: "Cash Recovery", value: recoveryData || 0 },
-                  { name: "Credits", value: todaySales?.creditSale || 0 },
+                  { name: "Credits", value: (todaySales as any)?.creditSale || 0 },
                   { name: "Cash Inflow", value: 0 },
                   { name: "Expenses", value: expensesData || 0 }
                 ]}
@@ -686,11 +658,11 @@ export default function Dashboard() {
                 <YAxis dataKey="name" type="category" width={100} />
                 <Tooltip />
                 <Bar dataKey="value" fill="#0088FE" />
-                </BarChart>
-              </ResponsiveContainer>
-            </CardContent>
-          </Card>
-        </div>
+              </BarChart>
+            </ResponsiveContainer>
+          </CardContent>
+        </Card>
+      </div>
 
       {/* Tables Section */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
@@ -700,8 +672,8 @@ export default function Dashboard() {
             <CardTitle>Credit Customer Outstanding</CardTitle>
             <div className="text-right">
               <span className="text-2xl font-bold">₹{creditOutstanding.toLocaleString()}</span>
-      </div>
-            </CardHeader>
+            </div>
+          </CardHeader>
           <CardContent>
             <div className="space-y-2">
               <div className="grid grid-cols-4 gap-2 text-sm font-medium text-gray-600">
@@ -709,8 +681,8 @@ export default function Dashboard() {
                 <span>Mobile No</span>
                 <span>Limit</span>
                 <span>Due</span>
-                      </div>
-              {creditCustomers?.map((customer: any, index: number) => (
+              </div>
+              {(creditCustomers as any)?.map((customer: any, index: number) => (
                 <div key={index} className="grid grid-cols-4 gap-2 text-sm">
                   <span className="flex items-center gap-2">
                     <div className="w-3 h-3 bg-blue-500 rounded-full"></div>
@@ -719,11 +691,11 @@ export default function Dashboard() {
                   <span>{customer.mobile_number || customer.mobile}</span>
                   <span>{customer.credit_limit || 0}</span>
                   <span>₹{(customer.current_balance || 0).toLocaleString()}/-</span>
-                    </div>
-                  ))}
                 </div>
-            </CardContent>
-          </Card>
+              ))}
+            </div>
+          </CardContent>
+        </Card>
 
         {/* Customer Last Payment */}
         <Card>
@@ -731,8 +703,8 @@ export default function Dashboard() {
             <CardTitle>Customer Last Payment</CardTitle>
             <div className="text-right">
               <span className="text-2xl font-bold">₹{creditOutstanding.toLocaleString()}</span>
-        </div>
-            </CardHeader>
+            </div>
+          </CardHeader>
           <CardContent>
             <div className="space-y-2">
               <div className="grid grid-cols-3 gap-2 text-sm font-medium text-gray-600">
@@ -745,14 +717,14 @@ export default function Dashboard() {
                   <span className="flex items-center gap-2">
                     <div className="w-3 h-3 bg-green-500 rounded-full"></div>
                     {customer.name}
-                      </span>
+                  </span>
                   <span>{customer.lastPaid}</span>
                   <span>₹{customer.due.toLocaleString()}/-</span>
-                    </div>
-                  ))}
                 </div>
-            </CardContent>
-          </Card>
+              ))}
+            </div>
+          </CardContent>
+        </Card>
       </div>
 
       {/* Bottom Charts Section */}
@@ -782,22 +754,22 @@ export default function Dashboard() {
         <Card>
           <CardHeader>
             <CardTitle>All Credit Parties</CardTitle>
-        </CardHeader>
+          </CardHeader>
           <CardContent>
-          <ResponsiveContainer width="100%" height={300}>
+            <ResponsiveContainer width="100%" height={300}>
               <BarChart data={creditParties}>
                 <CartesianGrid strokeDasharray="3 3" />
                 <XAxis dataKey="month" />
                 <YAxis />
                 <Tooltip />
-              <Legend />
+                <Legend />
                 <Bar dataKey="creditAmount" stackId="a" fill="#0088FE" name="Credit Amount" />
                 <Bar dataKey="recovery" stackId="a" fill="#00C49F" name="Recovery" />
-            </BarChart>
-          </ResponsiveContainer>
-        </CardContent>
-      </Card>
-        </div>
+              </BarChart>
+            </ResponsiveContainer>
+          </CardContent>
+        </Card>
+      </div>
     </div>
   );
 }

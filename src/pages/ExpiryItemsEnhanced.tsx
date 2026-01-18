@@ -15,15 +15,15 @@ import {
 } from "@/components/ui/table";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/hooks/useAuth";
-import {
-  Save,
-  Search,
-  Filter,
-  Download,
-  RefreshCw,
-  Plus,
-  Edit,
-  Trash2,
+import { 
+  Save, 
+  Search, 
+  Filter, 
+  Download, 
+  RefreshCw, 
+  Plus, 
+  Edit, 
+  Trash2, 
   HelpCircle,
   Calendar,
   AlertTriangle,
@@ -42,14 +42,13 @@ interface ExpiryItem {
   expiry_date: string;
   status: string;
   created_at: string;
-  category_name?: string;
   s_no: number;
 }
 
 export default function ExpiryItemsEnhanced() {
   const { toast } = useToast();
   const { getAuthHeaders } = useAuth();
-
+  
   // Data state
   const [rows, setRows] = useState<ExpiryItem[]>([]);
   const [loading, setLoading] = useState(false);
@@ -64,7 +63,7 @@ export default function ExpiryItemsEnhanced() {
         headers: getAuthHeaders(),
       });
       const result = await response.json();
-
+      
       if (result.ok) {
         setRows(result.rows || []);
       } else {
@@ -106,16 +105,10 @@ export default function ExpiryItemsEnhanced() {
 
     // Apply view filter based on activeView
     if (activeView === 'toExpire') {
-      // Filter items that are expiring soon (within 30 days) BUT NOT EXPIRED
+      // Filter items that are expiring soon (within 30 days)
       filtered = filtered.filter((row) => {
         const daysUntilExpiry = calculateDaysUntilExpiry(row.expiry_date);
         return daysUntilExpiry <= 30 && daysUntilExpiry >= 0;
-      });
-    } else if (activeView === 'allItems') {
-      // "Expiry Items" tab -> ONLY show EXPIRED items
-      filtered = filtered.filter((row) => {
-        const daysUntilExpiry = calculateDaysUntilExpiry(row.expiry_date);
-        return daysUntilExpiry < 0;
       });
     }
 
@@ -180,13 +173,13 @@ export default function ExpiryItemsEnhanced() {
       {/* Toggle Buttons */}
       <div className="px-6 py-4 bg-gradient-to-r from-white to-blue-50 border-b border-blue-200 shadow-sm">
         <div className="flex gap-2 mb-4">
-          <Button
+          <Button 
             onClick={() => setActiveView('toExpire')}
             className={activeView === 'toExpire' ? 'bg-orange-500 text-white hover:bg-orange-600' : 'bg-white text-black border border-gray-300 hover:bg-gray-50'}
           >
             To be Expired
           </Button>
-          <Button
+          <Button 
             onClick={() => setActiveView('allItems')}
             className={activeView === 'allItems' ? 'bg-orange-500 text-white hover:bg-orange-600' : 'bg-white text-black border border-gray-300 hover:bg-gray-50'}
           >
@@ -200,15 +193,23 @@ export default function ExpiryItemsEnhanced() {
         <div className="flex items-center gap-4">
           <div className="flex items-center gap-2">
             <Search className="h-4 w-4 text-blue-500" />
-            <Input
-              placeholder="Search items..."
+            <Input 
+              placeholder="Search items..." 
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
-              className="w-64 h-10 rounded-lg border-2 border-blue-200 focus:border-orange-500"
+              className="w-64 h-10 rounded-lg border-2 border-blue-200 focus:border-orange-500" 
             />
           </div>
 
           <div className="flex items-center gap-2 ml-auto">
+            <Button variant="outline" size="sm" className="bg-blue-500 text-white hover:bg-blue-600">
+              <Download className="h-4 w-4 mr-2" />
+              CSV
+            </Button>
+            <Button variant="outline" size="sm" className="bg-orange-500 text-white hover:bg-orange-600">
+              <Download className="h-4 w-4 mr-2" />
+              PDF
+            </Button>
             <Button variant="outline" size="sm" onClick={fetchList} disabled={loading}>
               <RefreshCw className={`h-4 w-4 mr-2 ${loading ? 'animate-spin' : ''}`} />
               Refresh
@@ -248,8 +249,8 @@ export default function ExpiryItemsEnhanced() {
                   ) : filteredRows.length === 0 ? (
                     <TableRow>
                       <TableCell colSpan={8} className="text-center py-8 text-muted-foreground">
-                        {activeView === 'toExpire'
-                          ? 'No items expiring soon'
+                        {activeView === 'toExpire' 
+                          ? 'No items expiring soon' 
                           : 'No expiry items found'
                         }
                       </TableCell>
@@ -257,15 +258,14 @@ export default function ExpiryItemsEnhanced() {
                   ) : (
                     filteredRows.map((row, index) => {
                       const daysUntilExpiry = calculateDaysUntilExpiry(row.expiry_date);
-                      const isExpired = daysUntilExpiry < 0;
-                      const isExpiringSoon = daysUntilExpiry <= 30 && !isExpired;
-
+                      const isExpiringSoon = daysUntilExpiry <= 30 && daysUntilExpiry >= 0;
+                      
                       return (
                         <TableRow key={row.id} className="hover:bg-blue-50/50 transition-colors">
                           <TableCell className="font-medium">{index + 1}</TableCell>
                           <TableCell>
                             <span className="px-2 py-1 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
-                              {row.category_name || 'General'}
+                              General
                             </span>
                           </TableCell>
                           <TableCell className="font-medium">{row.item_name}</TableCell>
@@ -278,18 +278,17 @@ export default function ExpiryItemsEnhanced() {
                           </TableCell>
                           <TableCell>
                             <div className="flex items-center gap-2">
-                              {isExpired ? (
-                                <AlertTriangle className="h-4 w-4 text-red-500" />
-                              ) : isExpiringSoon ? (
+                              {isExpiringSoon ? (
                                 <Clock className="h-4 w-4 text-yellow-500" />
                               ) : (
                                 <CheckCircle className="h-4 w-4 text-green-500" />
                               )}
-                              <span className={`font-medium ${isExpired ? 'text-red-600' :
-                                  isExpiringSoon ? 'text-yellow-600' :
-                                    'text-green-600'
-                                }`}>
-                                {isExpired ? 'Expired' : `${daysUntilExpiry} days`}
+                              <span className={`font-medium ${
+                                daysUntilExpiry <= 7 ? 'text-red-600' :
+                                daysUntilExpiry <= 30 ? 'text-yellow-600' :
+                                'text-green-600'
+                              }`}>
+                                {daysUntilExpiry > 0 ? `${daysUntilExpiry} days` : 'Expired'}
                               </span>
                             </div>
                           </TableCell>

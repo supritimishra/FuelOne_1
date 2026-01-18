@@ -1,6 +1,6 @@
 const mongoose = require('mongoose');
 
-const MONGODB_URI = "mongodb://localhost:27017/admin";
+const MONGODB_URI = "mongodb+srv://syntropylabworks_db_user:QArml7uLnqqg496U@cluster0.zlqfhe8.mongodb.net/admin";
 
 async function inspect() {
     try {
@@ -10,23 +10,27 @@ async function inspect() {
         const admin = mongoose.connection.db.admin();
         const dbs = await admin.listDatabases();
 
-        console.log("\nDatabases:");
-        dbs.databases.forEach(db => console.log(` - ${db.name} (Size: ${db.sizeOnDisk})`));
+        console.log("\n--- DATABASES FOUND ---");
+        dbs.databases.forEach(db => console.log(`DB: ${db.name} (${db.sizeOnDisk} bytes)`));
+        console.log("-----------------------\n");
 
-        for (const dbInfo of dbs.databases) {
-            if (dbInfo.sizeOnDisk > 0 && dbInfo.name !== 'admin' && dbInfo.name !== 'local' && dbInfo.name !== 'config') {
-                console.log(`\nChecking DB: ${dbInfo.name}...`);
+        const sortedDbs = dbs.databases.sort((a, b) => (a.name === 'test' ? -1 : 1));
+
+        for (const dbInfo of sortedDbs) {
+            if (dbInfo.sizeOnDisk > 0 && ['admin', 'local', 'config'].indexOf(dbInfo.name) === -1) {
+                console.log(`\nInspecting DB: [${dbInfo.name}]`);
                 const db = mongoose.connection.client.db(dbInfo.name);
                 const collections = await db.listCollections().toArray();
-                console.log(`  Collections: ${collections.map(c => c.name).join(', ')}`);
+                const colNames = collections.map(c => c.name);
+                console.log(`Collections (${colNames.length}): ${colNames.join(', ')}`);
 
-                const empCol = collections.find(c => c.name.toLowerCase().includes('employee'));
-                if (empCol) {
-                    console.log(`  SUCCESS! Found likely employees collection: ${empCol.name}`);
-                    const count = await db.collection(empCol.name).countDocuments();
-                    console.log(`  Count: ${count}`);
-                    const sample = await db.collection(empCol.name).find({}).limit(5).toArray();
-                    console.log("  Sample Data:", JSON.stringify(sample, null, 2));
+                // Check specific collections for user data
+                const checkCols = ['users', 'shiftsheets', 'vendors', 'businesstransactions', 'creditcustomers'];
+                for (const check of checkCols) {
+                    if (colNames.includes(check)) {
+                        const count = await db.collection(check).countDocuments();
+                        console.log(`  -> ${check}: ${count} docs`);
+                    }
                 }
             }
         }

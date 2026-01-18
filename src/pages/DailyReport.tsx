@@ -10,37 +10,33 @@ import { handleAPIError } from "@/lib/errorHandler";
 import { useReportDateRange } from "@/hooks/useDateRange";
 
 export default function DailyReport() {
+  // Use standardized date range hook with 7 days default for daily reports
   const { fromDate, toDate, setFromDate, setToDate, isValidRange } = useReportDateRange('LAST_7_DAYS');
+  
   const [loading, setLoading] = useState(true);
   const [rows, setRows] = useState<any[]>([]);
-  const [filterText, setFilterText] = useState("");
-
-  const filteredRows = rows.filter(r => {
-    const search = filterText.toLowerCase();
-    if (!search) return true;
-    return Object.values(r).some(v => String(v).toLowerCase().includes(search));
-  });
   const [totals, setTotals] = useState({
-    meterSale: 0,
-    lubSale: 0,
-    recovery: 0,
-    cashIn: 0,
-    totalCash: 0,
-    swipe: 0,
+    fuelSale: 0,
+    lubricantSale: 0,
+    cash: 0,
+    card: 0,
+    upi: 0,
     credit: 0,
     expenses: 0,
-    discount: 0,
-    recoveryBank: 0,
-    shortage: 0,
-    handCash: 0,
+    recovery: 0,
+    meterSale: 0,
+    denominations: 0,
   });
   const [errorMsg, setErrorMsg] = useState<string>("");
   const [shiftId, setShiftId] = useState<string>("ALL");
 
+  // Fetch shifts data using backend API
   const { data: shifts = [] } = useQuery({
     queryKey: ["/api/duty-shifts"],
     queryFn: async () => {
-      const response = await fetch('/api/duty-shifts', { credentials: 'include' });
+      const response = await fetch('/api/duty-shifts', {
+        credentials: 'include'
+      });
       const result = await response.json();
       if (!result.ok) throw new Error(result.error || 'Failed to fetch duty shifts');
       return result.rows || [];
@@ -50,307 +46,247 @@ export default function DailyReport() {
   const fetchReport = useCallback(async () => {
     setLoading(true);
     setErrorMsg("");
-
+    
+    // Validate date range
     if (!isValidRange) {
       setErrorMsg("Please select a valid date range");
       setLoading(false);
       return;
     }
-
+    
     try {
+      // Build query parameters
       const params = new URLSearchParams();
       params.append('from_date', fromDate);
       params.append('to_date', toDate);
       if (shiftId !== "ALL") params.append('shift_id', shiftId);
 
-      const [
-        guestRes, creditRes, lubeRes, expRes, recRes, meterRes,
-        swipeRes, empCashRes
-      ] = await Promise.all([
-        fetch(`/api/guest-sales?${params.toString()}`, { credentials: 'include' }),
-        fetch(`/api/credit-sales?${params.toString()}`, { credentials: 'include' }),
-        fetch(`/api/lubricant-sales?${params.toString()}`, { credentials: 'include' }),
-        fetch(`/api/expenses?${params.toString()}`, { credentials: 'include' }),
-        fetch(`/api/recoveries?${params.toString()}`, { credentials: 'include' }),
-        fetch(`/api/sale-entries?${params.toString()}`, { credentials: 'include' }),
-        fetch(`/api/swipe-transactions?${params.toString()}`, { credentials: 'include' }),
-        fetch(`/api/employee-cash-recovery?${params.toString()}`, { credentials: 'include' })
-      ]);
+      // Get guest sales split by payment
+      const guestResponse = await fetch(`/api/guest-sales?${params.toString()}`, {
+        credentials: 'include'
+      });
+      const guestResult = await guestResponse.json();
+      const guestSales = guestResult.ok ? guestResult.rows || [] : [];
 
-      const [
-        guestData, creditData, lubeData, expData, recData, meterData,
-        swipeData, empCashData
-      ] = await Promise.all([
-        guestRes.json(), creditRes.json(), lubeRes.json(), expRes.json(), recRes.json(), meterRes.json(),
-        swipeRes.json(), empCashRes.json()
-      ]);
+      const creditResponse = await fetch(`/api/credit-sales?${params.toString()}`, {
+        credentials: 'include'
+      });
+      const creditResult = await creditResponse.json();
+      const creditSales = creditResult.ok ? creditResult.rows || [] : [];
 
+      const lubeResponse = await fetch(`/api/lubricant-sales?${params.toString()}`, {
+        credentials: 'include'
+      });
+      const lubeResult = await lubeResponse.json();
+      const lubeSales = lubeResult.ok ? lubeResult.rows || [] : [];
+
+      const expensesResponse = await fetch(`/api/expenses?${params.toString()}`, {
+        credentials: 'include'
+      });
+      const expensesResult = await expensesResponse.json();
+      const expenses = expensesResult.ok ? expensesResult.rows || [] : [];
+
+      const recoveryResponse = await fetch(`/api/recoveries?${params.toString()}`, {
+        credentials: 'include'
+      });
+      const recoveryResult = await recoveryResponse.json();
+      const rec = recoveryResult.ok ? recoveryResult.rows || [] : [];
+
+      // Meter sales (from sale_entries), optional shift filter
+      const meterResponse = await fetch(`/api/sale-entries?${params.toString()}`, {
+        credentials: 'include'
+      });
+      const meterResult = await meterResponse.json();
+      const meter = meterResult.ok ? meterResult.rows || [] : [];
+
+      // Denominations total (cash count)
+      const denomsResponse = await fetch(`/api/denominations?${params.toString()}`, {
+        credentials: 'include'
+      });
+      const denomsResult = await denomsResponse.json();
+      const denoms = denomsResult.ok ? denomsResult.rows || [] : [];
+
+      // Aggregate by day
       const map: Record<string, any> = {};
-      const ensure = (d: string) => (map[d] ||= {
-        date: d,
-        meterSale: 0,
-        lubSale: 0,
-        recovery: 0,
-        cashIn: 0,
-        totalCash: 0,
-        swipe: 0,
-        credit: 0,
-        expenses: 0,
-        discount: 0,
-        recoveryBank: 0,
-        shortage: 0,
-        handCash: 0,
-        settlement: "Pending" // Placeholder
-      });
+      const ensure = (d: string) => (map[d] ||= { date: d, cash: 0, card: 0, upi: 0, fuelSale: 0, lubeSale: 0, credit: 0, expenses: 0, recovery: 0 });
 
-      // Meter Sale
-      (meterData.rows || []).forEach((m: any) => {
-        if (shiftId !== "ALL" && m.shift_id !== shiftId) return;
-        const r = ensure(m.sale_date);
-        r.meterSale += Number(m.net_sale_amount || 0);
-      });
-
-      // Lub Sale
-      (lubeData.rows || []).forEach((l: any) => {
-        const r = ensure(l.sale_date);
-        r.lubSale += Number(l.total_amount || 0);
-        r.discount += Number(l.discount || 0);
-      });
-
-      // Recovery (Cash vs Bank)
-      (recData.rows || []).forEach((rv: any) => {
-        const r = ensure(rv.recovery_date);
-        const amt = Number(rv.received_amount || 0);
-        const disc = Number(rv.discount || 0);
-        if (rv.payment_mode === "Cash") {
-          r.recovery += amt;
-        } else {
-          r.recoveryBank += amt;
-        }
-        r.discount += disc;
-      });
-
-      // Expenses
-      (expData.rows || []).forEach((e: any) => {
-        const r = ensure(e.expense_date);
-        r.expenses += Number(e.amount || 0);
-      });
-
-      // Credit Sales
-      (creditData.rows || []).forEach((c: any) => {
-        const r = ensure(c.sale_date);
-        r.credit += Number(c.total_amount || 0);
-      });
-
-      // Swipe
-      (swipeData.rows || []).forEach((s: any) => {
-        const r = ensure(s.transaction_date);
-        r.swipe += Number(s.amount || 0);
-      });
-
-      // Shortage
-      (empCashData.rows || []).forEach((emp: any) => {
-        const r = ensure(emp.recovery_date);
-        r.shortage += Number(emp.shortage_amount || 0);
-      });
-
-      // Guest Sales (Add to Cash/Swipe/Credit)
-      (guestData.rows || []).forEach((g: any) => {
-        const r = ensure(g.sale_date);
+      guestSales.forEach((g) => {
+        const d = g.sale_date as string;
+        const r = ensure(d);
         const amt = Number(g.total_amount || 0);
-        // Note: Guest sales might overlap with Meter sales if not handled carefully.
-        // Usually Meter Sale is the MASTER record of fuel dispensed. Guest Sale is just customer tagging.
-        // So we don't add Guest Sale to "Meter Sale" again. 
-        // But if Guest Sale was "Swipe", we might want to track that? 
-        // For now, let's assume "Swipe" table tracks all card swipes.
+        if (g.payment_mode === "Cash") { r.cash += amt; }
+        else if (g.payment_mode === "Card") { r.card += amt; }
+        else if (g.payment_mode === "UPI") { r.upi += amt; }
+        r.fuelSale += amt;
       });
 
-      // Calculate Computed Columns per day
-      Object.values(map).forEach(r => {
-        // Total Cash = (Meter Sale - Credit - Swipe) + Recovery + Lub Sale (if cash)
-        // This is tricky without knowing exact payment split of Meter/Lub.
-        // PROXY: Total Cash = Hand Cash + Expenses ? 
-        // No.
-        // Let's approximated: 
-        // Cash In flow = (Meter Sale + Lub Sale - Credit - Swipe) + Recovery(Cash).
+      creditSales.forEach((c) => {
+      const d = c.sale_date as string;
+      const r = ensure(d);
+      const amt = Number(c.total_amount || 0);
+      r.credit += amt;
+    });
 
-        // Let's try: 
-        // We don't have exact "Cash Sale" field in Meter Sale (Sale Entry).
-        // Is there a better way? 
-        // Maybe "Cash In" is just the cash collected? 
-        // Let's assume:
-        // Cash In = (Meter Sale + Lub Sale) - (Credit + Swipe) + Recovery(Cash).
-        const salesCash = (r.meterSale + r.lubSale) - (r.credit + r.swipe);
-        // Validating non-negative? 
-        const actualSalesCash = Math.max(0, salesCash);
+    (lubeSales || []).forEach((l) => {
+      const d = l.sale_date as string;
+      const r = ensure(d);
+      const amt = Number(l.total_amount || 0);
+      r.lubeSale += amt;
+    });
 
-        r.cashIn = actualSalesCash; // Cash generated from operations
-        r.totalCash = r.cashIn + r.recovery; // Total liquid cash
-        r.handCash = r.totalCash - r.expenses;
-      });
+    (expenses || []).forEach((e) => {
+      const d = e.expense_date as string;
+      const r = ensure(d);
+      const amt = Number(e.amount || 0);
+      r.expenses += amt;
+    });
 
-      const arr = Object.values(map).sort((a, b) => a.date.localeCompare(b.date));
-      setRows(arr);
+    (rec || []).forEach((rv) => {
+      const d = rv.recovery_date as string;
+      const r = ensure(d);
+      const amt = Number(rv.received_amount || 0);
+      r.recovery += amt;
+    });
 
-      // Aggregates
-      const t = arr.reduce((acc, r: any) => ({
-        meterSale: acc.meterSale + r.meterSale,
-        lubSale: acc.lubSale + r.lubSale,
-        recovery: acc.recovery + r.recovery,
-        cashIn: acc.cashIn + r.cashIn,
-        totalCash: acc.totalCash + r.totalCash,
-        swipe: acc.swipe + r.swipe,
-        credit: acc.credit + r.credit,
-        expenses: acc.expenses + r.expenses,
-        discount: acc.discount + r.discount,
-        recoveryBank: acc.recoveryBank + r.recoveryBank,
-        shortage: acc.shortage + r.shortage,
-        handCash: acc.handCash + r.handCash,
-      }), {
-        meterSale: 0, lubSale: 0, recovery: 0, cashIn: 0, totalCash: 0,
-        swipe: 0, credit: 0, expenses: 0, discount: 0, recoveryBank: 0,
-        shortage: 0, handCash: 0
-      });
-      setTotals(t);
-      setLoading(false);
+    // meter sale aggregate
+    (meter || []).forEach((m) => {
+      if (shiftId !== "ALL" && m.shift_id !== shiftId) return;
+      const d = m.sale_date as string;
+      const r = ensure(d);
+      const amt = Number((m as any).net_sale_amount || 0);
+      r.meterSale = (r.meterSale || 0) + amt;
+    });
 
-    } catch (e: any) {
-      const errorInfo = handleAPIError(e, "Daily Report");
-      setErrorMsg(errorInfo.description);
-      setRows([]);
-      setLoading(false);
-    }
-  }, [fromDate, toDate, shiftId, isValidRange]);
+    const arr = Object.values(map).sort((a, b) => a.date.localeCompare(b.date));
+    setRows(arr);
 
-  useEffect(() => { if (fromDate && toDate) fetchReport(); }, [fromDate, toDate, fetchReport]);
+    const denomTotal = (denoms || []).reduce((s, d: any) => {
+      const dateStr: string = (d.denomination_date || (d.created_at ? String(d.created_at).slice(0, 10) : null));
+      if (!dateStr) return s;
+      if (dateStr >= fromDate && dateStr <= toDate) {
+        return s + Number(d.total_amount || 0);
+      }
+      return s;
+    }, 0);
+
+    const t = arr.reduce((acc, r: any) => ({
+      fuelSale: acc.fuelSale + r.fuelSale,
+      lubricantSale: acc.lubricantSale + r.lubeSale,
+      cash: acc.cash + r.cash,
+      card: acc.card + r.card,
+      upi: acc.upi + r.upi,
+      credit: acc.credit + r.credit,
+      expenses: acc.expenses + r.expenses,
+      recovery: acc.recovery + r.recovery,
+      meterSale: acc.meterSale + (r.meterSale || 0),
+      denominations: denomTotal,
+    }), { fuelSale: 0, lubricantSale: 0, cash: 0, card: 0, upi: 0, credit: 0, expenses: 0, recovery: 0, meterSale: 0, denominations: 0 });
+    setTotals(t);
+    setLoading(false);
+  } catch (e: any) {
+    const errorInfo = handleAPIError(e, "Daily Report");
+    setErrorMsg(errorInfo.description);
+    setRows([]);
+    setLoading(false);
+  }
+}, [fromDate, toDate, shiftId, isValidRange]);
+
+useEffect(() => { if (fromDate && toDate) fetchReport(); }, [fromDate, toDate, fetchReport]);
 
   return (
     <div className="space-y-6">
-      <h1 className="text-3xl font-bold">Daily Report</h1>
+      <div className="flex items-center justify-between">
+        <h1 className="text-3xl font-bold">Daily Report</h1>
+        <div className="flex items-center gap-2">
+          <Input type="date" value={fromDate} onChange={(e) => setFromDate(e.target.value)} />
+          <span className="text-sm text-muted-foreground">to</span>
+          <Input type="date" value={toDate} onChange={(e) => setToDate(e.target.value)} />
+          <Select value={shiftId} onValueChange={setShiftId}>
+            <SelectTrigger className="w-[200px]"><SelectValue placeholder="All Shifts" /></SelectTrigger>
+            <SelectContent>
+              <SelectItem value="ALL">All Shifts</SelectItem>
+              {shifts.map((s) => (<SelectItem key={s.id} value={s.id}>{s.shift_name}</SelectItem>))}
+            </SelectContent>
+          </Select>
+          <Button onClick={fetchReport} disabled={loading}>{loading ? "Loading..." : "Search"}</Button>
+          <Button variant="secondary" onClick={() => window.print()}>Print</Button>
+        </div>
+      </div>
+
+      {errorMsg && (
+        <div className="text-sm text-destructive">{errorMsg}</div>
+      )}
+
+      <div className="grid gap-4 md:grid-cols-6">
+        <Card>
+          <CardHeader><CardTitle className="flex items-center gap-2"><TrendingUp className="h-4 w-4" /> Fuel Sale</CardTitle></CardHeader>
+          <CardContent className="text-2xl font-bold">₹{totals.fuelSale.toLocaleString("en-IN")}</CardContent>
+        </Card>
+        <Card>
+          <CardHeader><CardTitle className="flex items-center gap-2"><TrendingUp className="h-4 w-4" /> Lubricant Sale</CardTitle></CardHeader>
+          <CardContent className="text-2xl font-bold">₹{totals.lubricantSale.toLocaleString("en-IN")}</CardContent>
+        </Card>
+        <Card>
+          <CardHeader><CardTitle className="flex items-center gap-2"><Banknote className="h-4 w-4" /> Cash</CardTitle></CardHeader>
+          <CardContent className="text-2xl font-bold">₹{totals.cash.toLocaleString("en-IN")}</CardContent>
+        </Card>
+        <Card>
+          <CardHeader><CardTitle className="flex items-center gap-2"><CreditCard className="h-4 w-4" /> Digital (Card+UPI)</CardTitle></CardHeader>
+          <CardContent className="text-2xl font-bold">₹{(totals.card + totals.upi).toLocaleString("en-IN")}</CardContent>
+        </Card>
+        <Card>
+          <CardHeader><CardTitle className="flex items-center gap-2">Meter Sale</CardTitle></CardHeader>
+          <CardContent className="text-2xl font-bold">₹{totals.meterSale.toLocaleString("en-IN")}</CardContent>
+        </Card>
+        <Card>
+          <CardHeader><CardTitle className="flex items-center gap-2">Denominations</CardTitle></CardHeader>
+          <CardContent className="text-2xl font-bold">₹{totals.denominations.toLocaleString("en-IN")}</CardContent>
+        </Card>
+      </div>
 
       <Card>
-        <CardContent className="p-4">
-          <div className="flex flex-wrap items-center justify-between gap-4">
-            <div className="flex items-center gap-2">
-              <span className="text-sm font-medium">Show</span>
-              <Select defaultValue="All">
-                <SelectTrigger className="w-[80px]">
-                  <SelectValue placeholder="All" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="All">All</SelectItem>
-                  <SelectItem value="10">10</SelectItem>
-                  <SelectItem value="25">25</SelectItem>
-                  <SelectItem value="50">50</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-
-            <div className="flex items-center gap-4">
-              <div className="flex items-center gap-2">
-                <span className="text-sm">From Date</span>
-                <Input type="date" value={fromDate} onChange={(e) => setFromDate(e.target.value)} className="w-[150px]" />
-              </div>
-              <div className="flex items-center gap-2">
-                <span className="text-sm">To Date</span>
-                <Input type="date" value={toDate} onChange={(e) => setToDate(e.target.value)} className="w-[150px]" />
-              </div>
-              <Button onClick={fetchReport} disabled={loading}>{loading ? "Searching..." : "Search"}</Button>
-            </div>
-
-            <div className="flex items-center gap-2">
-              <span className="text-sm font-medium">Filter:</span>
-              <Input
-                placeholder="Type to filter..."
-                className="w-[200px]"
-                value={filterText}
-                onChange={(e) => setFilterText(e.target.value)}
-              />
-            </div>
-          </div>
-        </CardContent>
-      </Card>
-
-      <Card>
-        <CardContent className="p-0">
-          <div className="rounded-md border overflow-x-auto">
-            <Table>
-              <TableHeader>
-                <TableRow className="bg-muted/50">
-                  <TableHead>Date</TableHead>
-                  <TableHead className="text-right">Meter Sale(₹)</TableHead>
-                  <TableHead className="text-right">Lub Sale(₹)</TableHead>
-                  <TableHead className="text-right">Recovery(₹)</TableHead>
-                  <TableHead className="text-right">Cash In(₹)</TableHead>
-                  <TableHead className="text-right">Total Cash(₹)</TableHead>
-                  <TableHead className="text-right">Swipe(₹)</TableHead>
-                  <TableHead className="text-right">Credit(₹)</TableHead>
-                  <TableHead className="text-right">Expenses(₹)</TableHead>
-                  <TableHead className="text-right">Discount(₹)</TableHead>
-                  <TableHead className="text-right">Recovery Bank(₹)</TableHead>
-                  <TableHead className="text-right">Shortage(₹)</TableHead>
-                  <TableHead className="text-right">Hand Cash(₹)</TableHead>
-                  <TableHead>Settlement</TableHead>
-                  <TableHead>Pictures</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {rows.length === 0 ? (
-                  <TableRow><TableCell colSpan={15} className="text-center h-24 text-muted-foreground">No data available in table</TableCell></TableRow>
-                ) : (
-                  rows.map((r) => (
-                    <TableRow key={r.date}>
-                      <TableCell className="font-medium whitespace-nowrap">{new Date(r.date).toLocaleDateString()}</TableCell>
-                      <TableCell className="text-right">{r.meterSale.toLocaleString("en-IN")}</TableCell>
-                      <TableCell className="text-right">{r.lubSale.toLocaleString("en-IN")}</TableCell>
-                      <TableCell className="text-right text-green-600 font-medium">{r.recovery.toLocaleString("en-IN")}</TableCell>
-                      <TableCell className="text-right">{r.cashIn.toLocaleString("en-IN")}</TableCell>
-                      <TableCell className="text-right font-bold">{r.totalCash.toLocaleString("en-IN")}</TableCell>
-                      <TableCell className="text-right">{r.swipe.toLocaleString("en-IN")}</TableCell>
-                      <TableCell className="text-right">{r.credit.toLocaleString("en-IN")}</TableCell>
-                      <TableCell className="text-right text-red-600">{r.expenses.toLocaleString("en-IN")}</TableCell>
-                      <TableCell className="text-right">{r.discount.toLocaleString("en-IN")}</TableCell>
-                      <TableCell className="text-right">{r.recoveryBank.toLocaleString("en-IN")}</TableCell>
-                      <TableCell className="text-right text-red-500">{r.shortage.toLocaleString("en-IN")}</TableCell>
-                      <TableCell className="text-right font-bold text-blue-700">{r.handCash.toLocaleString("en-IN")}</TableCell>
-                      <TableCell>{r.settlement}</TableCell>
-                      <TableCell>-</TableCell>
-                    </TableRow>
-                  ))
-                )}
-                {rows.length > 0 && (
-                  <TableRow className="bg-muted font-bold">
-                    <TableCell>Total</TableCell>
-                    <TableCell className="text-right">{totals.meterSale.toLocaleString("en-IN")}</TableCell>
-                    <TableCell className="text-right">{totals.lubSale.toLocaleString("en-IN")}</TableCell>
-                    <TableCell className="text-right text-green-700">{totals.recovery.toLocaleString("en-IN")}</TableCell>
-                    <TableCell className="text-right">{totals.cashIn.toLocaleString("en-IN")}</TableCell>
-                    <TableCell className="text-right">{totals.totalCash.toLocaleString("en-IN")}</TableCell>
-                    <TableCell className="text-right">{totals.swipe.toLocaleString("en-IN")}</TableCell>
-                    <TableCell className="text-right">{totals.credit.toLocaleString("en-IN")}</TableCell>
-                    <TableCell className="text-right text-red-700">{totals.expenses.toLocaleString("en-IN")}</TableCell>
-                    <TableCell className="text-right">{totals.discount.toLocaleString("en-IN")}</TableCell>
-                    <TableCell className="text-right">{totals.recoveryBank.toLocaleString("en-IN")}</TableCell>
-                    <TableCell className="text-right text-red-700">{totals.shortage.toLocaleString("en-IN")}</TableCell>
-                    <TableCell className="text-right text-blue-800">{totals.handCash.toLocaleString("en-IN")}</TableCell>
-                    <TableCell></TableCell>
-                    <TableCell></TableCell>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2"><IndianRupee className="h-4 w-4" /> Summary Table</CardTitle>
+        </CardHeader>
+        <CardContent>
+          {rows.length === 0 ? (
+            <div className="text-sm text-muted-foreground">No data in the selected range.</div>
+          ) : (
+            <div className="rounded-md border overflow-hidden">
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Date</TableHead>
+                    <TableHead>Fuel Sale</TableHead>
+                    <TableHead>Lube Sale</TableHead>
+                    <TableHead>Cash</TableHead>
+                    <TableHead>Card</TableHead>
+                    <TableHead>UPI</TableHead>
+                    <TableHead>Credit</TableHead>
+                    <TableHead>Expenses</TableHead>
+                    <TableHead>Recovery</TableHead>
                   </TableRow>
-                )}
-              </TableBody>
-            </Table>
-          </div>
+                </TableHeader>
+                <TableBody>
+                  {rows.map((r) => (
+                    <TableRow key={r.date}>
+                      <TableCell>{new Date(r.date).toLocaleDateString()}</TableCell>
+                      <TableCell>₹{r.fuelSale.toLocaleString("en-IN")}</TableCell>
+                      <TableCell>₹{r.lubeSale.toLocaleString("en-IN")}</TableCell>
+                      <TableCell>₹{r.cash.toLocaleString("en-IN")}</TableCell>
+                      <TableCell>₹{r.card.toLocaleString("en-IN")}</TableCell>
+                      <TableCell>₹{r.upi.toLocaleString("en-IN")}</TableCell>
+                      <TableCell>₹{r.credit.toLocaleString("en-IN")}</TableCell>
+                      <TableCell className="text-red-600">₹{r.expenses.toLocaleString("en-IN")}</TableCell>
+                      <TableCell className="text-green-700">₹{r.recovery.toLocaleString("en-IN")}</TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </div>
+          )}
         </CardContent>
       </Card>
     </div>
   );
-}
-
-function PlusIcon({ className }: { className?: string }) {
-  return (
-    <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}>
-      <path d="M5 12h14" />
-      <path d="M12 5v14" />
-    </svg>
-  )
 }

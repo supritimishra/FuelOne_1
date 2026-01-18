@@ -25,8 +25,10 @@ reportsRouter.get("/all-credit-customers", async (req, res) => {
         const tenantId = ensureTenant(req, res);
         if (!tenantId) return;
 
+        console.log(`[Reports] Fetching credit customers for tenant: ${tenantId}`);
         // Fetch all active credit customers
         const customers = await CreditCustomer.find({ tenantId, isActive: true });
+        console.log(`[Reports] Found ${customers.length} active credit customers`);
 
         // In a real app we'd calculate current balance from transactions/recoveries
         // For now, return stored opening balance + some mock diff or just opening balance

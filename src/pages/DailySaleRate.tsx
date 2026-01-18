@@ -1,462 +1,483 @@
-
 import { useState, useEffect } from "react";
-import { Card, CardContent } from "@/components/ui/card";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
-import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { Copy, Trash2, Edit, Search } from "lucide-react";
-import { format, subDays } from "date-fns";
-
-interface FuelProduct {
-  id: string;
-  product_name: string;
-}
-
-interface SaleRate {
-  id?: string;
-  rate_date: string;
-  fuel_product_id: string;
-  open_rate: number;
-  close_rate: number;
-  variation_amount: number;
-  product_name?: string;
-  created_at?: string;
-  created_by_name?: string;
-}
+import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { validateFormData } from "@/lib/validation";
+import { handleAPIError } from "@/lib/errorHandler";
 
 export default function DailySaleRate() {
   const { toast } = useToast();
   const queryClient = useQueryClient();
 
-  const [businessDate, setBusinessDate] = useState<string>(
-    new Date().toISOString().slice(0, 10)
-  );
+  const [businessDate, setBusinessDate] = useState<string>(new Date().toISOString().slice(0, 10));
+  const [copyFrom, setCopyFrom] = useState<string>("");
 
-  // State for form inputs: productId -> { open, close, var }
-  const [formRates, setFormRates] = useState<Record<string, { open: string; close: string; var: string }>>({});
+  // Product-specific rates
+  const [selectedHsdProduct, setSelectedHsdProduct] = useState<string>("");
+  const [hsdOpen, setHsdOpen] = useState("");
+  const [hsdClose, setHsdClose] = useState("");
+  const [hsdVar, setHsdVar] = useState("");
+
+  const [selectedMsProduct, setSelectedMsProduct] = useState<string>("");
+  const [msOpen, setMsOpen] = useState("");
+  const [msClose, setMsClose] = useState("");
+  const [msVar, setMsVar] = useState("");
+
+  const [selectedXpProduct, setSelectedXpProduct] = useState<string>("");
+  const [xpOpen, setXpOpen] = useState("");
+  const [xpClose, setXpClose] = useState("");
+  const [xpVar, setXpVar] = useState("");
 
   // Search filters
   const [searchFrom, setSearchFrom] = useState("");
   const [searchTo, setSearchTo] = useState("");
-  const [searchProduct, setSearchProduct] = useState("All");
+  const [searchProduct, setSearchProduct] = useState("");
 
-  // Fetch fuel products
-  const { data: fuelProducts = [] } = useQuery<FuelProduct[]>({
+  // Auto-calculate variation amounts
+  useEffect(() => {
+    const open = parseFloat(hsdOpen);
+    const close = parseFloat(hsdClose);
+    if (!isNaN(open) && !isNaN(close)) {
+      setHsdVar((close - open).toFixed(2));
+    }
+  }, [hsdOpen, hsdClose]);
+
+  useEffect(() => {
+    const open = parseFloat(msOpen);
+    const close = parseFloat(msClose);
+    if (!isNaN(open) && !isNaN(close)) {
+      setMsVar((close - open).toFixed(2));
+    }
+  }, [msOpen, msClose]);
+
+  useEffect(() => {
+    const open = parseFloat(xpOpen);
+    const close = parseFloat(xpClose);
+    if (!isNaN(open) && !isNaN(close)) {
+      setXpVar((close - open).toFixed(2));
+    }
+  }, [xpOpen, xpClose]);
+
+  // Fetch fuel products for dropdowns
+  const { data: fuelProducts = [] } = useQuery({
     queryKey: ["/api/fuel-products"],
     queryFn: async () => {
-      const response = await fetch("/api/fuel-products");
+      const response = await fetch('/api/fuel-products');
       const result = await response.json();
+      if (!result.ok) throw new Error(result.error || 'Failed to fetch fuel products');
       return result.rows || [];
     },
   });
 
-  // Fetch all rates for the table
-  const { data: allRates = [] } = useQuery<SaleRate[]>({
-    queryKey: ["/api/daily-sale-rates", searchFrom, searchTo],
+  // Fetch daily sale rates data
+  const { data: saleRatesData, refetch: refetchSaleRates } = useQuery({
+    queryKey: ["/api/daily-sale-rates"],
     queryFn: async () => {
-      const params = new URLSearchParams();
-      if (searchFrom) params.append("from", searchFrom);
-      if (searchTo) params.append("to", searchTo);
-      const response = await fetch(`/api/daily-sale-rates?${params.toString()}`);
+      const response = await fetch('/api/daily-sale-rates');
       const result = await response.json();
+      if (!result.ok) throw new Error(result.error || 'Failed to fetch daily sale rates');
       return result.rows || [];
     },
   });
 
-  // Fetch rates for the selected business date to pre-fill form
-  const { data: dateRates } = useQuery<SaleRate[]>({
-    queryKey: ["/api/daily-sale-rates", "date", businessDate],
-    queryFn: async () => {
-      const response = await fetch(`/api/daily-sale-rates?date=${businessDate}`);
-      const result = await response.json();
-      return result.rows || [];
-    },
-    enabled: !!businessDate,
-  });
+  const rows = saleRatesData || [];
 
-  // Update form when dateRates loads
-  useEffect(() => {
-    if (fuelProducts.length > 0) {
-      const newRates: Record<string, { open: string; close: string; var: string }> = {};
+  // Handle form submission
+  const handleSave = async () => {
+    try {
+      const saleRates = [];
 
-      fuelProducts.forEach(p => {
-        // Find existing rate for this product on this date
-        const existing = dateRates?.find(r => r.fuel_product_id === p.id);
-        if (existing) {
-          newRates[p.id] = {
-            open: existing.open_rate.toString(),
-            close: existing.close_rate.toString(),
-            var: existing.variation_amount.toString()
-          };
-        } else {
-          newRates[p.id] = { open: "", close: "", var: "" };
+      if (hsdOpen && hsdClose && hsdVar && selectedHsdProduct) {
+        const validation = validateFormData({
+          fuel_product_id: selectedHsdProduct,
+          open_rate: hsdOpen,
+          close_rate: hsdClose,
+          variation_amount: hsdVar
+        }, {
+          required: ['fuel_product_id'],
+          uuid: ['fuel_product_id'],
+          numeric: ['open_rate', 'close_rate', 'variation_amount']
+        });
+
+        if (!validation.valid) {
+          toast({
+            title: "Validation Error",
+            description: validation.errors.join(', '),
+            variant: "destructive",
+          });
+          return;
         }
-      });
-      setFormRates(newRates);
-    }
-  }, [dateRates, fuelProducts, businessDate]);
 
-  // Handle Input Changes
-  const handleInputChange = (productId: string, field: 'open' | 'close', value: string) => {
-    setFormRates(prev => {
-      const current = prev[productId] || { open: "", close: "", var: "" };
-      const next = { ...current, [field]: value };
-
-      // Auto calc variation
-      const open = parseFloat(next.open);
-      const close = parseFloat(next.close);
-      if (!isNaN(open) && !isNaN(close)) {
-        next.var = (close - open).toFixed(2);
-      } else {
-        next.var = "";
+        saleRates.push({
+          rate_date: businessDate,
+          fuel_product_id: selectedHsdProduct,
+          open_rate: parseFloat(hsdOpen),
+          close_rate: parseFloat(hsdClose),
+          variation_amount: parseFloat(hsdVar)
+        });
       }
 
-      return { ...prev, [productId]: next };
-    });
-  };
+      if (msOpen && msClose && msVar && selectedMsProduct) {
+        const validation = validateFormData({
+          fuel_product_id: selectedMsProduct,
+          open_rate: msOpen,
+          close_rate: msClose,
+          variation_amount: msVar
+        }, {
+          required: ['fuel_product_id'],
+          uuid: ['fuel_product_id'],
+          numeric: ['open_rate', 'close_rate', 'variation_amount']
+        });
 
-  // Copy from previous day
-  const handleCopy = async () => {
-    const prevDate = format(subDays(new Date(businessDate), 1), "yyyy-MM-dd");
-    try {
-      const response = await fetch(`/api/daily-sale-rates?date=${prevDate}`);
-      const result = await response.json();
-      const prevRates: SaleRate[] = result.rows || [];
+        if (!validation.valid) {
+          toast({
+            title: "Validation Error",
+            description: validation.errors.join(', '),
+            variant: "destructive",
+          });
+          return;
+        }
 
-      if (prevRates.length === 0) {
+        saleRates.push({
+          rate_date: businessDate,
+          fuel_product_id: selectedMsProduct,
+          open_rate: parseFloat(msOpen),
+          close_rate: parseFloat(msClose),
+          variation_amount: parseFloat(msVar)
+        });
+      }
+
+      if (xpOpen && xpClose && xpVar && selectedXpProduct) {
+        const validation = validateFormData({
+          fuel_product_id: selectedXpProduct,
+          open_rate: xpOpen,
+          close_rate: xpClose,
+          variation_amount: xpVar
+        }, {
+          required: ['fuel_product_id'],
+          uuid: ['fuel_product_id'],
+          numeric: ['open_rate', 'close_rate', 'variation_amount']
+        });
+
+        if (!validation.valid) {
+          toast({
+            title: "Validation Error",
+            description: validation.errors.join(', '),
+            variant: "destructive",
+          });
+          return;
+        }
+
+        saleRates.push({
+          rate_date: businessDate,
+          fuel_product_id: selectedXpProduct,
+          open_rate: parseFloat(xpOpen),
+          close_rate: parseFloat(xpClose),
+          variation_amount: parseFloat(xpVar)
+        });
+      }
+
+      if (saleRates.length === 0) {
         toast({
-          title: "No Data",
-          description: "No data found for the previous day to copy.",
-          variant: "destructive"
+          title: "Error",
+          description: "Please fill in at least one product's rates and select the product",
+          variant: "destructive",
         });
         return;
       }
 
-      setFormRates(prev => {
-        const next = { ...prev };
-        prevRates.forEach(r => {
-          if (next[r.fuel_product_id]) {
-            next[r.fuel_product_id] = {
-              ...next[r.fuel_product_id],
-              open: r.close_rate.toString(), // Copy Close to Open
-              var: next[r.fuel_product_id].close
-                ? (parseFloat(next[r.fuel_product_id].close) - r.close_rate).toFixed(2)
-                : ""
-            };
-          }
+      const response = await fetch('/api/daily-sale-rates', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(saleRates),
+      });
+
+      const result = await response.json();
+
+      if (result.ok) {
+        toast({
+          title: "Success",
+          description: "Daily sale rates saved successfully!",
         });
-        return next;
-      });
 
-      toast({ title: "Copied", description: "Rates copied from previous day." });
-    } catch (e) {
-      console.error(e);
-      toast({ title: "Error", description: "Failed to copy rates.", variant: "destructive" });
+        // Clear form
+        setHsdOpen("");
+        setHsdClose("");
+        setHsdVar("");
+        setMsOpen("");
+        setMsClose("");
+        setMsVar("");
+        setXpOpen("");
+        setXpClose("");
+        setXpVar("");
+        setSelectedHsdProduct("");
+        setSelectedMsProduct("");
+        setSelectedXpProduct("");
+
+        // Refresh data
+        refetchSaleRates();
+      } else {
+        throw new Error(result.error || 'Failed to save daily sale rates');
+      }
+    } catch (error) {
+      console.error('Error saving daily sale rates:', error);
+      toast({
+        title: "Error",
+        description: error instanceof Error ? error.message : "Failed to save daily sale rates",
+        variant: "destructive",
+      });
     }
   };
 
-  // Mutations
-  const saveMutation = useMutation({
-    mutationFn: async (ratesToSave: any[]) => {
-      const response = await fetch("/api/daily-sale-rates", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(ratesToSave),
-      });
-      return response.json();
-    },
-    onSuccess: (data) => {
-      if (data.success) {
-        toast({ title: "Success", description: "Rates saved successfully!" });
-        queryClient.invalidateQueries({ queryKey: ["/api/daily-sale-rates"] });
-      } else {
-        toast({ title: "Error", description: data.error, variant: "destructive" });
-      }
-    },
-    onError: (err) => {
-      toast({ title: "Error", description: "Failed to save data.", variant: "destructive" });
-    }
-  });
-
-  const deleteMutation = useMutation({
-    mutationFn: async (id: string) => {
-      const response = await fetch(`/api/daily-sale-rates/${id}`, {
-        method: "DELETE"
-      });
-      return response.json();
-    },
-    onSuccess: (data) => {
-      if (data.success) {
-        toast({ title: "Deleted", description: "Rate deleted successfully." });
-        queryClient.invalidateQueries({ queryKey: ["/api/daily-sale-rates"] });
-      } else {
-        toast({ title: "Error", description: data.error || "Failed to delete", variant: "destructive" });
-      }
-    }
-  });
-
-  const onSave = () => {
-    const ratesToSave = Object.entries(formRates).map(([productId, values]) => {
-      if (!values.open && !values.close) return null;
-      return {
-        rateDate: businessDate,
-        fuelProductId: productId,
-        openRate: values.open || "0",
-        closeRate: values.close || "0",
-        variationAmount: values.var || "0"
-      };
-    }).filter(r => r !== null);
-
-    if (ratesToSave.length === 0) {
-      toast({ title: "Warning", description: "No rates entered to save.", variant: "destructive" });
-      return;
-    }
-
-    saveMutation.mutate(ratesToSave);
+  // Handle search
+  const handleSearch = () => {
+    refetchSaleRates();
   };
-
-  const filteredRows = allRates.filter((row) => {
-    if (searchProduct && searchProduct !== "All") {
-      return row.product_name === searchProduct;
-    }
-    return true;
-  });
 
   return (
-    <div className="p-4 space-y-6 bg-slate-50 min-h-screen">
-      <div className="flex items-center gap-2 text-sm text-gray-600">
-        <span className="font-semibold">Dashboard</span>
-        <span>{'>'}</span>
-        <span className="text-blue-600">Add Daily Sale Rate</span>
-      </div>
+    <div className="p-6 space-y-6">
+      <div className="flex items-center gap-2 text-sm"><span className="font-semibold">Dashboard</span><span>/</span><span>Add Daily Sale Rate</span></div>
 
-      <Card className="bg-indigo-600 border-none rounded-lg shadow-lg">
-        <CardContent className="p-6 space-y-6">
-          <div className="flex items-center gap-4">
-            <div className="bg-yellow-400 text-black font-semibold px-6 py-2 rounded shadow-sm text-sm whitespace-nowrap">
-              Choose Date
-            </div>
-            <div className="flex-1 bg-white rounded flex items-center px-4 py-2">
-              <span className="font-medium mr-4">Business Date</span>
-              <Input
+      <Card className="bg-gradient-to-r from-blue-600 to-blue-700 text-white">
+        <CardHeader>
+          <CardTitle className="text-white">&nbsp;</CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-5">
+          {/* Top row: Choose Date -> Business Date -> OK */}
+          <div className="grid grid-cols-4 gap-3 items-center">
+            <div className="col-span-1 text-white font-medium">Business Date</div>
+            <div className="col-span-1 flex items-center gap-3">
+              <button
+                type="button"
+                className="h-10 px-4 rounded-md bg-white text-black font-medium hover:bg-gray-100"
+                onClick={() => document.getElementById('dsr_business')?.showPicker()}
+              >
+                {businessDate || 'Select Date'}
+              </button>
+              <input
+                id="dsr_business"
                 type="date"
                 value={businessDate}
                 onChange={(e) => setBusinessDate(e.target.value)}
-                className="border-none shadow-none focus-visible:ring-0 w-full"
+                className="hidden"
               />
             </div>
-            <Button className="bg-cyan-500 hover:bg-cyan-600 text-white font-bold px-8">
-              OK
-            </Button>
+            <div className="col-span-1">
+              <Input type="date" className="bg-white text-black" value={businessDate} onChange={(e) => setBusinessDate(e.target.value)} />
+            </div>
+            <Button className="bg-orange-500 hover:bg-orange-600 text-white">OK</Button>
           </div>
 
-          <div>
+          {/* COPY label */}
+          <div className="text-left">
+            <Button size="sm" className="bg-orange-500 hover:bg-orange-600">COPY</Button>
+          </div>
+
+          {/* HSD row */}
+          <div className="grid grid-cols-7 gap-3 items-center">
+            <div className="col-span-1 font-semibold">HSD</div>
+            <div className="col-span-1">
+              <Select value={selectedHsdProduct} onValueChange={setSelectedHsdProduct}>
+                <SelectTrigger className="bg-white text-black">
+                  <SelectValue placeholder="Select Product" />
+                </SelectTrigger>
+                <SelectContent>
+                  {fuelProducts.map((product) => (
+                    <SelectItem key={product.id} value={product.id}>
+                      {product.product_name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <Input className="bg-white text-black col-span-2" placeholder="Open Sale Rate*" value={hsdOpen} onChange={(e) => setHsdOpen(e.target.value)} />
+            <Input className="bg-white text-black col-span-2" placeholder="Close Rate*" value={hsdClose} onChange={(e) => setHsdClose(e.target.value)} />
+            <Input className="bg-white text-black col-span-1" placeholder="Vari. Amt*" value={hsdVar} onChange={(e) => setHsdVar(e.target.value)} />
+          </div>
+
+          {/* MS row */}
+          <div className="grid grid-cols-7 gap-3 items-center">
+            <div className="col-span-1 font-semibold">MS</div>
+            <div className="col-span-1">
+              <Select value={selectedMsProduct} onValueChange={setSelectedMsProduct}>
+                <SelectTrigger className="bg-white text-black">
+                  <SelectValue placeholder="Select Product" />
+                </SelectTrigger>
+                <SelectContent>
+                  {fuelProducts.map((product) => (
+                    <SelectItem key={product.id} value={product.id}>
+                      {product.product_name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <Input className="bg-white text-black col-span-2" placeholder="Open Sale Rate*" value={msOpen} onChange={(e) => setMsOpen(e.target.value)} />
+            <Input className="bg-white text-black col-span-2" placeholder="Close Rate*" value={msClose} onChange={(e) => setMsClose(e.target.value)} />
+            <Input className="bg-white text-black col-span-1" placeholder="Vari. Amt*" value={msVar} onChange={(e) => setMsVar(e.target.value)} />
+          </div>
+
+          {/* XP row */}
+          <div className="grid grid-cols-7 gap-3 items-center">
+            <div className="col-span-1 font-semibold">XP</div>
+            <div className="col-span-1">
+              <Select value={selectedXpProduct} onValueChange={setSelectedXpProduct}>
+                <SelectTrigger className="bg-white text-black">
+                  <SelectValue placeholder="Select Product" />
+                </SelectTrigger>
+                <SelectContent>
+                  {fuelProducts.map((product) => (
+                    <SelectItem key={product.id} value={product.id}>
+                      {product.product_name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <Input className="bg-white text-black col-span-2" placeholder="Open Sale Rate*" value={xpOpen} onChange={(e) => setXpOpen(e.target.value)} />
+            <Input className="bg-white text-black col-span-2" placeholder="Close Rate*" value={xpClose} onChange={(e) => setXpClose(e.target.value)} />
+            <Input className="bg-white text-black col-span-1" placeholder="Vari. Amt*" value={xpVar} onChange={(e) => setXpVar(e.target.value)} />
+          </div>
+
+          <div className="flex justify-center">
             <Button
-              onClick={handleCopy}
-              className="bg-orange-500 hover:bg-orange-600 text-white font-bold gap-2 text-xs h-8"
+              onClick={handleSave}
+              className="rounded-full bg-orange-500 hover:bg-orange-600 text-white px-8"
             >
-              <Copy className="h-3 w-3" />
-              COPY
-            </Button>
-          </div>
-
-          <div className="space-y-4">
-            {fuelProducts.map((product) => (
-              <div key={product.id} className="grid grid-cols-12 gap-4 items-center">
-                <div className="col-span-1 text-white font-bold text-lg uppercase">
-                  {product.product_name}
-                </div>
-                <div className="col-span-11 grid grid-cols-3 gap-4">
-                  <div className="relative">
-                    <Input
-                      className="bg-white h-12 text-lg px-4"
-                      placeholder="Open Sale Rate*"
-                      type="number"
-                      value={formRates[product.id]?.open || ""}
-                      onChange={(e) => handleInputChange(product.id, 'open', e.target.value)}
-                    />
-                  </div>
-                  <div className="relative">
-                    <Input
-                      className="bg-white h-12 text-lg px-4"
-                      placeholder="Close Rate*"
-                      type="number"
-                      value={formRates[product.id]?.close || ""}
-                      onChange={(e) => handleInputChange(product.id, 'close', e.target.value)}
-                    />
-                  </div>
-                  <div className="relative">
-                    <Input
-                      className="bg-white h-12 text-lg px-4"
-                      placeholder="Vari. Amt*"
-                      readOnly
-                      value={formRates[product.id]?.var || ""}
-                    />
-                  </div>
-                </div>
-              </div>
-            ))}
-          </div>
-
-          <div className="flex justify-center pt-4">
-            <Button
-              onClick={onSave}
-              className="bg-lime-500 hover:bg-lime-600 text-black font-bold px-12 py-6 text-lg rounded-full shadow-lg transition-transform hover:scale-105"
-            >
-              <span className="mr-2">💾</span> SAVE
+              SAVE
             </Button>
           </div>
         </CardContent>
       </Card>
 
-      <Card className="rounded-lg shadow-sm">
-        <CardContent className="p-4 flex flex-wrap items-center gap-6 justify-center">
-          <div className="flex items-center gap-2">
-            <span className="font-semibold text-gray-700">Search From</span>
-            <Input
-              type="date"
-              className="w-40"
-              value={searchFrom}
-              onChange={(e) => setSearchFrom(e.target.value)}
-            />
-            <span className="font-semibold text-gray-700">To</span>
-            <Input
-              type="date"
-              className="w-40"
-              value={searchTo}
-              onChange={(e) => setSearchTo(e.target.value)}
-            />
-          </div>
-          <div className="flex items-center gap-2">
-            <span className="font-semibold text-gray-700">Product</span>
-            <Select value={searchProduct} onValueChange={setSearchProduct}>
-              <SelectTrigger className="w-48 bg-white">
-                <SelectValue placeholder="Choose Product" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="All">All Products</SelectItem>
-                {fuelProducts.map(p => (
-                  <SelectItem key={p.id} value={p.product_name}>{p.product_name}</SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
-          <Button
-            onClick={() => queryClient.invalidateQueries({ queryKey: ["/api/daily-sale-rates"] })}
-            className="bg-orange-500 hover:bg-orange-600 text-white font-bold"
-          >
-            <Search className="h-4 w-4 mr-2" />
-            Search
-          </Button>
-        </CardContent>
-      </Card>
-
-      <Card className="rounded-lg shadow-sm">
-        <CardContent className="p-0">
-          <div className="p-4 flex justify-between items-center border-b">
-            <div className="flex gap-2">
-              <Button variant="destructive" size="sm" className="font-bold">
-                <Trash2 className="h-4 w-4 mr-1" /> Delete
+      {/* Filters */}
+      <Card>
+        <CardContent className="space-y-3 pt-6">
+          <div className="grid grid-cols-5 gap-4">
+            <div className="flex items-center gap-2">
+              <span>Search From</span>
+              <Input
+                placeholder="Filter Date"
+                type="date"
+                value={searchFrom}
+                onChange={(e) => setSearchFrom(e.target.value)}
+              />
+            </div>
+            <div className="flex items-center gap-2">
+              <span>To</span>
+              <Input
+                placeholder="Filter Date"
+                type="date"
+                value={searchTo}
+                onChange={(e) => setSearchTo(e.target.value)}
+              />
+            </div>
+            <div className="flex items-center gap-2">
+              <span>Product</span>
+              <Select value={searchProduct} onValueChange={setSearchProduct}>
+                <SelectTrigger className="w-56">
+                  <SelectValue placeholder="Choose Product" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="HSD">HSD</SelectItem>
+                  <SelectItem value="MS">MS</SelectItem>
+                  <SelectItem value="XP">XP</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="flex items-center gap-2">
+              <Button
+                onClick={handleSearch}
+                className="bg-orange-500 hover:bg-orange-600"
+              >
+                Search
               </Button>
             </div>
-
-            <div className="flex items-center gap-4">
-              <div className="flex items-center gap-2">
-                <span className="text-sm text-gray-600">Show:</span>
-                <Select defaultValue="All">
-                  <SelectTrigger className="w-20 h-8">
-                    <SelectValue placeholder="All" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="All">All</SelectItem>
-                    <SelectItem value="10">10</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-              <div className="flex items-center gap-2">
-                <span className="text-sm text-gray-600">Filter:</span>
-                <Input placeholder="Type to filter..." className="h-8 w-40" />
-              </div>
-            </div>
           </div>
+        </CardContent>
+      </Card>
 
-          <div className="overflow-x-auto">
-            <Table>
-              <TableHeader className="bg-gray-50">
+      {/* Table */}
+      <Card>
+        <CardContent className="pt-6">
+          <div className="flex items-center justify-between mb-4">
+            <div />
+            <div className="flex items-center gap-2"><Button variant="outline" size="sm">Copy</Button><Button variant="outline" size="sm" className="border-blue-500 text-blue-600">CSV</Button><Button variant="outline" size="sm" className="border-orange-500 text-orange-600">PDF</Button><Button variant="outline" size="sm">Print</Button><div className="flex items-center gap-2 ml-4"><span>Filter:</span><Input placeholder="Type to filter..." className="w-56" /></div></div>
+          </div>
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead>S.No</TableHead>
+                <TableHead>Date</TableHead>
+                <TableHead>Sale Rate</TableHead>
+                <TableHead>Closing Rate</TableHead>
+                <TableHead>Product</TableHead>
+                <TableHead>Variation Amt</TableHead>
+                <TableHead>Action</TableHead>
+                <TableHead>User Log Details</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {rows.length === 0 ? (
                 <TableRow>
-                  <TableHead className="w-10"><Input type="checkbox" className="w-4 h-4" /></TableHead>
-                  <TableHead className="w-16 font-bold text-gray-700">S.No</TableHead>
-                  <TableHead className="font-bold text-gray-700">Date</TableHead>
-                  <TableHead className="font-bold text-gray-700">Sale Rate</TableHead>
-                  <TableHead className="font-bold text-gray-700">Closing Rate</TableHead>
-                  <TableHead className="font-bold text-gray-700">Product</TableHead>
-                  <TableHead className="font-bold text-gray-700">Variation Amt</TableHead>
-                  <TableHead className="font-bold text-gray-700 text-center">Action</TableHead>
-                  <TableHead className="font-bold text-gray-700">User Log Details</TableHead>
+                  <TableCell colSpan={8} className="text-center text-gray-500">
+                    No data available. Add some daily sale rates to see them here.
+                  </TableCell>
                 </TableRow>
-              </TableHeader>
-              <TableBody>
-                {filteredRows.map((row, index) => (
-                  <TableRow key={row.id} className="hover:bg-slate-50 transition-colors">
-                    <TableCell><Input type="checkbox" className="w-4 h-4" /></TableCell>
+              ) : (
+                rows.map((row, index) => (
+                  <TableRow key={row.id || index}>
                     <TableCell>{index + 1}</TableCell>
-                    <TableCell>{format(new Date(row.rate_date), "dd-MMM-yyyy")}</TableCell>
-                    <TableCell className="font-medium">{row.open_rate}</TableCell>
-                    <TableCell className="font-medium">{row.close_rate}</TableCell>
-                    <TableCell>{row.product_name}</TableCell>
-                    <TableCell className="text-green-600 font-bold">
-                      {row.variation_amount}
+                    <TableCell>{row.rate_date || '-'}</TableCell>
+                    <TableCell>{row.open_rate || '-'}</TableCell>
+                    <TableCell>{row.close_rate || '-'}</TableCell>
+                    <TableCell>{row.product_name || '-'}</TableCell>
+                    <TableCell>{row.variation_amount || '-'}</TableCell>
+                    <TableCell>
+                      <Button variant="outline" size="sm" onClick={() => {
+                        setEditingRate(row);
+                        // Populate form fields with row data
+                        setBusinessDate(row.rate_date || businessDate);
+                        if (row.product_name === 'HSD') {
+                          setHsdOpen(row.open_rate || '');
+                          setHsdClose(row.close_rate || '');
+                          setHsdVar(row.variation_amount || '');
+                        } else if (row.product_name === 'MS') {
+                          setMsOpen(row.open_rate || '');
+                          setMsClose(row.close_rate || '');
+                          setMsVar(row.variation_amount || '');
+                        } else if (row.product_name === 'XP') {
+                          setXpOpen(row.open_rate || '');
+                          setXpClose(row.close_rate || '');
+                          setXpVar(row.variation_amount || '');
+                        }
+                        toast({ title: "Edit Mode", description: `Editing rate for ${row.product_name}` });
+                      }}>
+                        Edit
+                      </Button>
                     </TableCell>
                     <TableCell>
-                      <div className="flex justify-center gap-2">
-                        <Button variant="ghost" size="icon" className="h-8 w-8 text-green-600 hover:text-green-700 hover:bg-green-50">
-                          <Edit className="h-4 w-4" />
-                        </Button>
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          className="h-8 w-8 text-red-500 hover:text-red-700 hover:bg-red-50"
-                          onClick={() => {
-                            if (row.id && confirm("Are you sure you want to delete this rate?")) {
-                              deleteMutation.mutate(row.id);
-                            }
-                          }}
-                        >
-                          <Trash2 className="h-4 w-4" />
-                        </Button>
-                      </div>
-                    </TableCell>
-                    <TableCell className="text-xs text-gray-500">
-                      Created: {row.created_by_name || "Super Admin"} {row.created_at ? format(new Date(row.created_at), "dd-MM-yyyy hh:mm a") : "-"}
+                      <Button variant="outline" size="sm" onClick={() => {
+                        setViewingRate(row);
+                        toast({
+                          title: "Rate Details",
+                          description: `${row.product_name} - Date: ${row.rate_date}, Open: ${row.open_rate}, Close: ${row.close_rate}`
+                        });
+                      }}>
+                        View
+                      </Button>
                     </TableCell>
                   </TableRow>
-                ))}
-                {filteredRows.length === 0 && (
-                  <TableRow>
-                    <TableCell colSpan={9} className="text-center py-8 text-gray-400">
-                      No data available
-                    </TableCell>
-                  </TableRow>
-                )}
-              </TableBody>
-            </Table>
-          </div>
+                ))
+              )}
+            </TableBody>
+          </Table>
         </CardContent>
       </Card>
     </div>

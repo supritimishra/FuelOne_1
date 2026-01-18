@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -12,7 +12,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { toast } from "@/hooks/use-toast";
-import { useForm, Controller } from "react-hook-form";
+import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import {
@@ -23,557 +23,537 @@ import {
   FormLabel,
   FormMessage,
 } from "@/components/ui/form";
-import { Edit, Trash2, Save, Plus, Search, FileText } from "lucide-react";
+import { Edit, Trash2, Save, Plus } from "lucide-react";
 import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
-import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
-import { Checkbox } from "@/components/ui/checkbox";
-import { Label } from "@/components/ui/label";
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-  DialogFooter,
-  DialogTrigger,
-  DialogDescription,
-} from "@/components/ui/dialog";
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 
-// Schema using camelCase to match Backend Drizzle Schema
 const guestEntrySchema = z.object({
-  saleDate: z.string().min(1, "Date is required"),
-  shift: z.enum(["S-1", "S-2"]).default("S-1"),
-  customerName: z.string().optional(),
-  mobileNumber: z.string().optional(),
-  billNo: z.string().optional(),
-  vehicleNumber: z.string().optional(),
-  fuelProductId: z.string().min(1, "Product is required"),
-  pricePerUnit: z.coerce.number().min(0.01, "Price must be greater than 0"),
-  amount: z.coerce.number().min(0, "Amount is required"),
-  discount: z.coerce.number().default(0),
-  quantity: z.coerce.number().min(0.01, "Quantity must be greater than 0"),
-  description: z.string().optional(),
-  paymentMode: z.enum(["Cash", "UPI", "Card", "Credit"]).default("Cash"),
-  employeeId: z.string().optional(),
-  sendSms: z.boolean().default(false).optional(),
-  gstNumber: z.string().optional(),
+  sale_date: z.string().min(1, "Date is required"),
+  customer_name: z.string().min(1, "Customer Name is required"),
+  mobile_number: z.string().min(10, "Mobile Number must be at least 10 digits"),
+  discount: z.coerce.number().optional(),
+  fuel_product_id: z.string().min(1, "Product is required"),
+  bill_no: z.string().optional(), // GST / TIN
+  vehicle_number: z.string().min(1, "Vehicle Number is required"),
 });
 
 type GuestEntryForm = z.infer<typeof guestEntrySchema>;
 
 export default function GuestSale() {
   const queryClient = useQueryClient();
-  const [gstModalOpen, setGstModalOpen] = useState(false);
-  const [searchParams, setSearchParams] = useState({ from: '', to: '', mobile: '' });
-  const [tempGst, setTempGst] = useState("");
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [deleteId, setDeleteId] = useState<string | null>(null);
+  const [searchTerm, setSearchTerm] = useState("");
 
-  // Fetch Master Data
   const { data: fuelProducts = [] } = useQuery<any[]>({
     queryKey: ["/api/fuel-products"],
     queryFn: async () => {
-      const res = await fetch("/api/fuel-products");
-      const d = await res.json();
-      return d.data || d.rows || [];
+      const response = await fetch("/api/fuel-products", { credentials: "include" });
+      const result = await response.json();
+      return result.rows || [];
     },
   });
 
-  const { data: employees = [] } = useQuery<any[]>({
-    queryKey: ["/api/employees"],
+  const { data: guestEntries = [], isLoading } = useQuery<any[]>({
+    queryKey: ["/api/guest-sales"],
     queryFn: async () => {
-      const res = await fetch("/api/employees");
-      const d = await res.json();
-      return d.data || d.rows || [];
-    },
-  });
-
-  const { data: guestEntries = [], isLoading, refetch } = useQuery<any[]>({
-    queryKey: ["/api/guest-sales", searchParams],
-    queryFn: async () => {
-      const params = new URLSearchParams();
-      if (searchParams.from) params.append('from', searchParams.from);
-      if (searchParams.to) params.append('to', searchParams.to);
-      if (searchParams.mobile) params.append('mobile', searchParams.mobile);
-
-      const res = await fetch(`/api/guest-sales?${params.toString()}`);
-      const d = await res.json();
-      return d.data || d.rows || [];
+      const response = await fetch("/api/guest-sales", { credentials: "include" });
+      const result = await response.json();
+      if (!result.ok) throw new Error(result.error || "Failed to fetch");
+      return result.rows || [];
     },
   });
 
   const form = useForm<GuestEntryForm>({
     resolver: zodResolver(guestEntrySchema),
     defaultValues: {
-      saleDate: new Date().toISOString().slice(0, 10),
-      shift: "S-1",
-      customerName: "",
-      mobileNumber: "",
-      billNo: "",
-      vehicleNumber: "",
-      fuelProductId: "",
-      pricePerUnit: 0,
-      amount: 0,
+      sale_date: new Date().toISOString().slice(0, 10),
+      customer_name: "",
+      mobile_number: "",
       discount: 0,
-      quantity: 0,
-      description: "",
-      paymentMode: "Cash",
-      employeeId: "",
-      sendSms: false,
-      gstNumber: "",
+      fuel_product_id: "",
+      bill_no: "",
+      vehicle_number: "",
     },
   });
 
-  // Watchers for Calculations
-  const watchPrice = form.watch("pricePerUnit");
-  const watchAmount = form.watch("amount");
-  const watchQty = form.watch("quantity");
-  const watchProduct = form.watch("fuelProductId");
-  const watchGst = form.watch("gstNumber");
-
-  // Price calculation is now handled in onChange events directly
-
-
-  // Mutations
   const createMutation = useMutation({
-    mutationFn: async (data: GuestEntryForm) => {
-      const res = await fetch("/api/guest-sales", {
+    mutationFn: async (formData: GuestEntryForm) => {
+      const response = await fetch("/api/guest-sales", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(data), // Send data exactly as is (camelCase)
+        credentials: "include",
+        body: JSON.stringify({
+          ...formData,
+          quantity: 0,
+          price_per_unit: 0,
+          total_amount: 0,
+          payment_mode: "Cash",
+          sale_type: "S-1",
+        }),
       });
-      const d = await res.json();
-      if (!d.success) throw new Error(d.error || "Failed to create");
-      return d;
+      const result = await response.json();
+      if (!result.ok) throw new Error(result.error || "Failed to create");
+      return result;
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/guest-sales"] });
-      toast({ title: "Success", description: "Sale saved successfully" });
+      toast({ title: "Guest entry added successfully" });
       form.reset({
-        saleDate: new Date().toISOString().slice(0, 10),
-        shift: "S-1",
-        pricePerUnit: 0,
-        amount: 0,
-        quantity: 0,
+        sale_date: new Date().toISOString().slice(0, 10),
+        customer_name: "",
+        mobile_number: "",
         discount: 0,
-        paymentMode: "Cash",
-        sendSms: false,
-        gstNumber: "",
-        customerName: "",
-        mobileNumber: "",
-        billNo: "",
-        vehicleNumber: "",
-        description: "",
-        fuelProductId: "", // Reset product too if desired
+        fuel_product_id: "",
+        bill_no: "",
+        vehicle_number: "",
       });
-      setTempGst("");
     },
-    onError: (err: any) => toast({ variant: "destructive", title: "Error", description: err.message }),
+    onError: (err: any) => {
+      toast({
+        title: "Failed to add guest entry",
+        description: err.message,
+        variant: "destructive",
+      });
+    },
   });
 
+  const updateMutation = useMutation({
+    mutationFn: async (formData: GuestEntryForm & { id: string }) => {
+      const response = await fetch(`/api/guest-sales/${formData.id}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify({
+          ...formData,
+          quantity: 0,
+          price_per_unit: 0,
+          total_amount: 0,
+        }),
+      });
+      const result = await response.json();
+      if (!result.ok) throw new Error(result.error || "Failed to update");
+      return result;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/guest-sales"] });
+      toast({ title: "Guest entry updated successfully" });
+      setEditingId(null);
+      form.reset({
+        sale_date: new Date().toISOString().slice(0, 10),
+        customer_name: "",
+        mobile_number: "",
+        discount: 0,
+        fuel_product_id: "",
+        bill_no: "",
+        vehicle_number: "",
+      });
+    },
+    onError: (err: any) => {
+      toast({
+        title: "Failed to update guest entry",
+        description: err.message,
+        variant: "destructive",
+      });
+    },
+  });
+
+  const deleteMutation = useMutation({
+    mutationFn: async (id: string) => {
+      const response = await fetch(`/api/guest-sales/${id}`, {
+        method: "DELETE",
+        credentials: "include",
+      });
+      const result = await response.json();
+      if (!result.ok) throw new Error(result.error || "Failed to delete");
+      return result;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/guest-sales"] });
+      toast({ title: "Guest entry deleted successfully" });
+      setDeleteId(null);
+    },
+    onError: (err: any) => {
+      toast({
+        title: "Failed to delete guest entry",
+        description: err.message,
+        variant: "destructive",
+      });
+    },
+  });
+
+  const handleEdit = (item: any) => {
+    setEditingId(item.id);
+    form.reset({
+      sale_date: item.sale_date ? new Date(item.sale_date).toISOString().slice(0, 10) : "",
+      customer_name: item.customer_name || "",
+      mobile_number: item.mobile_number || "",
+      discount: item.discount || 0,
+      fuel_product_id: item.fuel_product_id || "",
+      bill_no: item.bill_no || "",
+      vehicle_number: item.vehicle_number || "",
+    });
+    window.scrollTo({ top: 0, behavior: "smooth" });
+  };
+
   const onSubmit = (data: GuestEntryForm) => {
-    // If price is missing but we have amount and quantity, calculate it and set it
-    if (data.pricePerUnit <= 0 && data.amount > 0 && data.quantity > 0) {
-      data.pricePerUnit = Number((data.amount / data.quantity).toFixed(2));
-    }
-
-    // Force update the hidden input so the form state is consistent
-    if (data.pricePerUnit > 0) {
-      form.setValue("pricePerUnit", data.pricePerUnit);
-    }
-
-    if (data.pricePerUnit <= 0) {
-      toast({ variant: "destructive", title: "Validation Error", description: "Could not determine Price. Please ensure both Amount and Quantity are entered." });
-      return;
-    }
-    createMutation.mutate(data);
-  };
-
-  // Calculation Handlers
-  const handleAmountChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const val = parseFloat(e.target.value) || 0;
-    form.setValue("amount", val);
-
-    // If we have quantity, back-calculate price
-    const qty = form.getValues("quantity");
-    if (qty > 0) {
-      form.setValue("pricePerUnit", parseFloat((val / qty).toFixed(2)));
+    if (editingId) {
+      updateMutation.mutate({ ...data, id: editingId });
+    } else {
+      createMutation.mutate(data);
     }
   };
 
-  const handleQtyChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const val = parseFloat(e.target.value) || 0;
-    form.setValue("quantity", val);
-
-    // If we have amount, back-calculate price
-    const amt = form.getValues("amount");
-    if (amt > 0 && val > 0) {
-      form.setValue("pricePerUnit", parseFloat((amt / val).toFixed(2)));
-    }
-  };
-
-  const handleSaveGst = () => {
-    form.setValue("gstNumber", tempGst);
-    setGstModalOpen(false);
-    toast({ title: "GST Saved", description: "GST Number added to current form" });
-  };
-
-  // Prepare Search state updaters
-  const updateSearch = (key: string, val: string) => {
-    setSearchParams(prev => ({ ...prev, [key]: val }));
-  };
-
-  const triggerSearch = () => {
-    refetch();
-  };
+  const filteredEntries = guestEntries.filter((item) =>
+    (item.customer_name?.toLowerCase() || "").includes(searchTerm.toLowerCase()) ||
+    (item.mobile_number || "").includes(searchTerm) ||
+    (item.vehicle_number?.toLowerCase() || "").includes(searchTerm.toLowerCase())
+  );
 
   return (
-    <div className="space-y-4">
-      {/* Top Info Bar Placeholder */}
-      <div className="flex gap-4 mb-4">
-        <div className="bg-cyan-500 text-white px-3 py-1 rounded font-bold">MS : 105.74</div>
-        <div className="bg-cyan-500 text-white px-3 py-1 rounded font-bold">HSD : 92.32</div>
-        <div className="bg-cyan-500 text-white px-3 py-1 rounded font-bold">XP : 113.2</div>
-      </div>
-
-      <Card className="bg-blue-600 border-none shadow-lg text-white">
-        <CardHeader className="py-4">
-          <CardTitle>Regular Sales</CardTitle>
+    <div className="space-y-6">
+      <Card className="border-t-4 border-t-blue-600 shadow-md">
+        <CardHeader className="bg-blue-600 text-white py-3">
+          <CardTitle className="text-lg font-medium">Create Guest Customer</CardTitle>
         </CardHeader>
-        <CardContent>
+        <CardContent className="p-6 bg-blue-50">
           <Form {...form}>
             <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
-
-              {/* Total Display */}
-              <div className="bg-white text-black p-2 rounded w-1/3 mb-4 flex justify-between">
-                <span className="font-bold">Total Amount Value: {watchAmount}</span>
-                {watchGst && <span className="text-blue-600 font-bold ml-2">GST: {watchGst}</span>}
-              </div>
-
-              {/* Date & Shift */}
-              <div className="flex flex-col md:flex-row gap-4 items-center">
-                <div className="flex bg-white rounded overflow-hidden w-full md:w-auto">
-                  <div className="bg-yellow-400 text-black px-4 py-2 font-bold">Choose Date</div>
-                  <Input
-                    type="date"
-                    {...form.register("saleDate")}
-                    className="border-none focus-visible:ring-0 text-black w-40"
-                  />
-                </div>
-
-                <div className="border border-white/30 rounded px-4 py-2 flex gap-4 items-center">
-                  <Controller
-                    name="shift"
-                    control={form.control}
-                    render={({ field }) => (
-                      <RadioGroup
-                        onValueChange={field.onChange}
-                        defaultValue={field.value}
-                        className="flex gap-4"
-                      >
-                        <div className="flex items-center space-x-2">
-                          <RadioGroupItem value="S-1" id="s1" className="border-white text-white" />
-                          <Label htmlFor="s1" className="text-white">S-1</Label>
-                        </div>
-                        <div className="flex items-center space-x-2">
-                          <RadioGroupItem value="S-2" id="s2" className="border-white text-white" />
-                          <Label htmlFor="s2" className="text-white">S-2</Label>
-                        </div>
-                      </RadioGroup>
-                    )}
-                  />
-                </div>
-              </div>
-
-              {/* Row 1: Details */}
-              <div className="grid grid-cols-1 md:grid-cols-5 gap-2">
-                <Input className="bg-white text-black" placeholder="Mobile Number" {...form.register("mobileNumber")} />
-                <Input className="bg-white text-black" placeholder="Name" {...form.register("customerName")} />
-                <Input className="bg-white text-black" placeholder="Bill No" {...form.register("billNo")} />
-                <Input className="bg-white text-black" placeholder="Vehicle No" {...form.register("vehicleNumber")} />
-
-                <Controller
-                  name="fuelProductId"
+              <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
+                <FormField
                   control={form.control}
+                  name="sale_date"
                   render={({ field }) => (
-                    <Select onValueChange={field.onChange} value={field.value}>
-                      <SelectTrigger className="bg-white text-black">
-                        <SelectValue placeholder="Product" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {fuelProducts.map((p) => (
-                          <SelectItem key={p.id} value={p.id}>{p.productName || p.product_name}</SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  )}
-                />
-              </div>
-
-              {/* Row 2: Amounts - MODIFIED LAYOUT */}
-              <div className="grid grid-cols-1 md:grid-cols-4 gap-2">
-
-                {/* 1. Amount */}
-                <div className="flex flex-col">
-                  <Input
-                    className="bg-white text-black placeholder:text-gray-500 font-semibold"
-                    placeholder="Amount"
-                    type="number" step="0.01"
-                    value={watchAmount === 0 ? '' : watchAmount}
-                    onChange={handleAmountChange}
-                  />
-                </div>
-
-                {/* 2. Discount */}
-                <div className="flex flex-col">
-                  <Input
-                    className="bg-white text-black placeholder:text-gray-500 font-semibold"
-                    placeholder="Discount"
-                    type="number" step="0.01"
-                    {...form.register("discount")}
-                  />
-                </div>
-
-                {/* 3. Quantity */}
-                <div className="flex flex-col">
-                  <Input
-                    className="bg-white text-black placeholder:text-gray-500 font-semibold"
-                    placeholder="Qty(Lts)"
-                    type="number" step="0.01"
-                    value={watchQty === 0 ? '' : watchQty}
-                    onChange={handleQtyChange}
-                  />
-                </div>
-
-                {/* 4. Description (replaces the zero box) */}
-                <Input className="bg-white text-black placeholder:text-gray-500" placeholder="Description" {...form.register("description")} />
-
-                {/* Hidden Price field to satisfy requirement */}
-                <input type="hidden" {...form.register("pricePerUnit")} />
-              </div>
-
-              {/* Row 3: Payment & Employee */}
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-2">
-                <Controller
-                  name="paymentMode"
-                  control={form.control}
-                  render={({ field }) => (
-                    <Select onValueChange={field.onChange} value={field.value}>
-                      <SelectTrigger className="bg-white text-black">
-                        <SelectValue placeholder="Collection Mode" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="Cash">Cash</SelectItem>
-                        <SelectItem value="UPI">UPI</SelectItem>
-                        <SelectItem value="Card">Card</SelectItem>
-                        <SelectItem value="Credit">Credit</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  )}
-                />
-
-                <Controller
-                  name="employeeId"
-                  control={form.control}
-                  render={({ field }) => (
-                    <Select onValueChange={field.onChange} value={field.value}>
-                      <SelectTrigger className="bg-white text-black">
-                        <SelectValue placeholder="Select Employee" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {employees.map((e) => (
-                          <SelectItem key={e.id} value={e.id}>{e.employeeName || e.employee_name}</SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  )}
-                />
-              </div>
-
-              {/* Row 4: Actions */}
-              <div className="flex justify-between items-center mt-4">
-                <div className="flex gap-4 items-center">
-                  <div className="flex items-center space-x-2 bg-white px-3 py-2 rounded text-black">
-                    <Controller
-                      name="sendSms"
-                      control={form.control}
-                      render={({ field }) => (
-                        <Checkbox
-                          checked={field.value}
-                          onCheckedChange={field.onChange}
-                          id="sms"
-                        />
-                      )}
-                    />
-                    <label htmlFor="sms" className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70">
-                      Send SMS ?
-                    </label>
-                  </div>
-
-                  <Dialog open={gstModalOpen} onOpenChange={setGstModalOpen}>
-                    <Button type="button" variant="outline" onClick={() => setGstModalOpen(true)} className="bg-blue-200 border-none hover:bg-blue-300">
-                      <FileText className="w-5 h-5 text-blue-800" />
-                      <span className="ml-2 text-blue-900 font-bold">Fill GST</span>
-                    </Button>
-                    <DialogContent>
-                      <DialogHeader>
-                        <DialogTitle>Enter GST Information</DialogTitle>
-                        <DialogDescription>
-                          Enter the GST Number for this customer/transaction.
-                        </DialogDescription>
-                      </DialogHeader>
-                      <div className="py-4">
-                        <Label>GST Number</Label>
-                        <Input
-                          value={tempGst}
-                          onChange={(e) => setTempGst(e.target.value)}
-                          placeholder="e.g. 29AAAAA0000A1Z5"
-                        />
+                    <FormItem>
+                      <FormLabel className="text-blue-900 font-semibold">Choose Date</FormLabel>
+                      <div className="flex gap-2">
+                        <Button
+                          type="button"
+                          variant="secondary"
+                          className="bg-yellow-400 hover:bg-yellow-500 text-black font-medium px-4"
+                        >
+                          Choose Date
+                        </Button>
+                        <FormControl>
+                          <Input type="date" {...field} className="bg-white border-blue-200 focus:border-blue-500" />
+                        </FormControl>
                       </div>
-                      <DialogFooter>
-                        <Button variant="outline" onClick={() => setGstModalOpen(false)}>Cancel</Button>
-                        <Button onClick={handleSaveGst}>Save GST</Button>
-                      </DialogFooter>
-                    </DialogContent>
-                  </Dialog>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
 
-                </div>
+                <FormField
+                  control={form.control}
+                  name="customer_name"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel className="text-blue-900 font-semibold">
+                        Customer Name <span className="text-red-500">*</span>
+                      </FormLabel>
+                      <FormControl>
+                        <Input
+                          {...field}
+                          className="bg-white border-blue-200 focus:border-blue-500"
+                          placeholder="Enter Name"
+                        />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
 
-                <Button type="submit" className="bg-[#84cc16] hover:bg-[#65a30d] text-white font-bold px-8 rounded-full shadow-lg transform active:scale-95 transition-all">
-                  SAVE
-                </Button>
+                <FormField
+                  control={form.control}
+                  name="mobile_number"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel className="text-blue-900 font-semibold">
+                        Mobile Number <span className="text-red-500">*</span>
+                      </FormLabel>
+                      <FormControl>
+                        <Input
+                          {...field}
+                          className="bg-white border-blue-200 focus:border-blue-500"
+                          placeholder="Enter Mobile Number"
+                        />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
 
-                <Button type="button" size="icon" className="rounded-full bg-blue-400/50 hover:bg-blue-400 text-white">
-                  <Plus />
-                </Button>
+                <FormField
+                  control={form.control}
+                  name="discount"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel className="text-blue-900 font-semibold">Discount Amount</FormLabel>
+                      <FormControl>
+                        <Input
+                          type="number"
+                          {...field}
+                          className="bg-white border-blue-200 focus:border-blue-500"
+                          placeholder="Enter Discount"
+                        />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+
+                <FormField
+                  control={form.control}
+                  name="fuel_product_id"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel className="text-blue-900 font-semibold">Select</FormLabel>
+                      <Select onValueChange={field.onChange} value={field.value}>
+                        <FormControl>
+                          <SelectTrigger className="bg-white border-blue-200 focus:border-blue-500">
+                            <SelectValue placeholder="Select Product" />
+                          </SelectTrigger>
+                        </FormControl>
+                        <SelectContent>
+                          {fuelProducts.map((product) => (
+                            <SelectItem key={product.id} value={product.id}>
+                              {product.product_name}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+
+                <FormField
+                  control={form.control}
+                  name="bill_no"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel className="text-blue-900 font-semibold">GST / TIN</FormLabel>
+                      <FormControl>
+                        <Input
+                          {...field}
+                          className="bg-white border-blue-200 focus:border-blue-500"
+                          placeholder="Enter GST / TIN"
+                        />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+
+                <FormField
+                  control={form.control}
+                  name="vehicle_number"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel className="text-blue-900 font-semibold">
+                        Vehicle Number <span className="text-red-500">*</span>
+                      </FormLabel>
+                      <div className="flex gap-2">
+                        <FormControl>
+                          <Input
+                            {...field}
+                            className="bg-white border-blue-200 focus:border-blue-500"
+                            placeholder="Enter Vehicle Number"
+                          />
+                        </FormControl>
+                        <Button
+                          type="button"
+                          size="icon"
+                          className="bg-blue-600 hover:bg-blue-700 text-white shrink-0"
+                        >
+                          <Plus className="h-4 w-4" />
+                        </Button>
+                      </div>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
               </div>
 
+              <div className="flex justify-center mt-6">
+                <Button
+                  type="submit"
+                  className="bg-[#84cc16] hover:bg-[#65a30d] text-white px-8 font-bold rounded-full"
+                  disabled={createMutation.isPending || updateMutation.isPending}
+                >
+                  <Save className="h-4 w-4 mr-2" />{" "}
+                  {createMutation.isPending || updateMutation.isPending ? "SAVING..." : "SAVE"}
+                </Button>
+              </div>
             </form>
           </Form>
         </CardContent>
       </Card>
 
-      {/* Bottom Filter/List Section */}
       <Card>
-        <CardContent className="p-4">
-          {/* Search Bar */}
-          <div className="flex flex-col md:flex-row gap-4 items-end mb-4 border-b pb-4">
+        <CardContent className="p-0">
+          <div className="p-4 flex justify-between items-center bg-white border-b">
             <div className="flex items-center gap-2">
-              <span className="font-bold text-sm">From Date</span>
-              <Input
-                type="date"
-                className="w-32"
-                value={searchParams.from}
-                onChange={(e) => updateSearch('from', e.target.value)}
-              />
+              <span className="text-sm text-gray-500">Show:</span>
+              <select className="border rounded p-1 text-sm bg-white">
+                <option>All</option>
+              </select>
             </div>
-            <div className="flex items-center gap-2">
-              <span className="font-bold text-sm">To Date</span>
-              <Input
-                type="date"
-                className="w-32"
-                value={searchParams.to}
-                onChange={(e) => updateSearch('to', e.target.value)}
-              />
+            <div className="flex items-center gap-4">
+              <div className="flex gap-1">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="text-green-600 border-green-200 bg-green-50"
+                >
+                  CSV
+                </Button>
+                <Button variant="outline" size="sm" className="text-red-600 border-red-200 bg-red-50">
+                  PDF
+                </Button>
+              </div>
+              <div className="flex items-center gap-2">
+                <span className="text-sm text-gray-500">Filter:</span>
+                <Input
+                  placeholder="Type to filter..."
+                  className="h-8 w-48"
+                  value={searchTerm}
+                  onChange={(e) => setSearchTerm(e.target.value)}
+                />
+              </div>
             </div>
-            <div className="flex items-center gap-2 flex-1">
-              <span className="font-bold text-sm">Mobile No</span>
-              <Input
-                placeholder="Search by Mobile No"
-                className="flex-1"
-                value={searchParams.mobile}
-                onChange={(e) => updateSearch('mobile', e.target.value)}
-              />
-            </div>
-            <Button
-              onClick={triggerSearch}
-              className="bg-[#f97316] hover:bg-[#ea580c] text-white"
-            >
-              <Search className="w-4 h-4 mr-2" /> Search
-            </Button>
           </div>
 
-          {/* Data Table */}
-          <div className="rounded-md border overflow-x-auto">
+          <div className="overflow-x-auto">
             <Table>
-              <TableHeader className="bg-gray-100 whitespace-nowrap">
+              <TableHeader className="bg-gray-50">
                 <TableRow>
-                  <TableHead>S.No</TableHead>
-                  <TableHead>Date</TableHead>
-                  <TableHead>Mobile No</TableHead>
-                  <TableHead>Name</TableHead>
-                  <TableHead>Bill Number</TableHead>
-                  <TableHead>Vehicle Number</TableHead>
-                  <TableHead>Employee</TableHead>
-                  <TableHead>Product</TableHead>
-                  <TableHead>Payment Mode</TableHead>
-                  <TableHead>Payment Type</TableHead>
-                  <TableHead>Price</TableHead>
-                  <TableHead>Quantity</TableHead>
-                  <TableHead>Cost (₹)</TableHead>
-                  <TableHead>Discount (₹)</TableHead>
-                  <TableHead>Action</TableHead>
-                  <TableHead>Shift</TableHead>
-                  <TableHead>Description</TableHead>
-                  <TableHead>User Log Details</TableHead>
+                  <TableHead className="font-bold text-gray-700">Sl No</TableHead>
+                  <TableHead className="font-bold text-gray-700">Date</TableHead>
+                  <TableHead className="font-bold text-gray-700">Name</TableHead>
+                  <TableHead className="font-bold text-gray-700">Number</TableHead>
+                  <TableHead className="font-bold text-gray-700">Offer Amount</TableHead>
+                  <TableHead className="font-bold text-gray-700">Offer Type</TableHead>
+                  <TableHead className="font-bold text-gray-700">Gst / TIN No</TableHead>
+                  <TableHead className="font-bold text-gray-700">Vehicle Number</TableHead>
+                  <TableHead className="font-bold text-gray-700">User Log Details</TableHead>
+                  <TableHead className="font-bold text-gray-700 text-center">Status</TableHead>
+                  <TableHead className="font-bold text-gray-700 text-center">Action</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
                 {isLoading ? (
                   <TableRow>
-                    <TableCell colSpan={18} className="text-center py-4">Loading...</TableCell>
+                    <TableCell colSpan={11} className="text-center py-8 text-gray-500">
+                      Loading...
+                    </TableCell>
                   </TableRow>
-                ) : guestEntries.length === 0 ? (
+                ) : filteredEntries.length === 0 ? (
                   <TableRow>
-                    <TableCell colSpan={18} className="text-center py-4">No records found</TableCell>
+                    <TableCell colSpan={11} className="text-center py-8 text-gray-500">
+                      No data available in table
+                    </TableCell>
                   </TableRow>
                 ) : (
-                  guestEntries.map((entry: any, index: number) => {
-                    const empName = employees.find((e: any) => e.id === entry.employeeId)?.employeeName || "-";
-                    const prodName = entry.productName || entry.fuelProductId; // Fallback
-                    // Assuming 'paymentType' is not in schema but might be added later, using 'Cash'/Default for now or mapping if available
-                    const paymentType = "-";
-
-                    return (
-                      <TableRow key={index} className="whitespace-nowrap">
-                        <TableCell>{index + 1}</TableCell>
-                        <TableCell>{entry.saleDate ? new Date(entry.saleDate).toLocaleDateString() : "-"}</TableCell>
-                        <TableCell>{entry.mobileNumber || "-"}</TableCell>
-                        <TableCell>{entry.customerName || "-"}</TableCell>
-                        <TableCell>{entry.billNo || "-"}</TableCell>
-                        <TableCell>{entry.vehicleNumber || "-"}</TableCell>
-                        <TableCell>{empName}</TableCell>
-                        <TableCell>{prodName}</TableCell>
-                        <TableCell>{entry.paymentMode}</TableCell>
-                        <TableCell>{paymentType}</TableCell>
-                        <TableCell>{Number(entry.pricePerUnit).toFixed(2)}</TableCell>
-                        <TableCell>{Number(entry.quantity).toFixed(2)}</TableCell>
-                        <TableCell>{Number(entry.amount).toFixed(2)}</TableCell>
-                        <TableCell>{Number(entry.discount).toFixed(2)}</TableCell>
-                        <TableCell>
-                          <div className="flex gap-2">
-                            <Button size="icon" variant="ghost" className="h-6 w-6 text-blue-500"><Edit className="w-4 h-4" /></Button>
-                            <Button size="icon" variant="ghost" className="h-6 w-6 text-red-500"><Trash2 className="w-4 h-4" /></Button>
-                          </div>
-                        </TableCell>
-                        <TableCell>{entry.shift}</TableCell>
-                        <TableCell>{entry.description || "-"}</TableCell>
-                        <TableCell className="text-xs text-gray-400">
-                          {/* Placeholder for User Log Details if available */}
-                          {entry.createdBy || "System"}
-                        </TableCell>
-                      </TableRow>
-                    );
-                  })
+                  filteredEntries.map((item, idx) => (
+                    <TableRow key={item.id} className="hover:bg-gray-50">
+                      <TableCell>{idx + 1}</TableCell>
+                      <TableCell>
+                        {item.sale_date
+                          ? new Date(item.sale_date).toLocaleDateString("en-GB")
+                          : "-"}
+                      </TableCell>
+                      <TableCell className="font-medium">{item.customer_name || "-"}</TableCell>
+                      <TableCell>{item.mobile_number || "-"}</TableCell>
+                      <TableCell>{item.discount || "0"}</TableCell>
+                      <TableCell>{item.product_name || "-"}</TableCell>
+                      <TableCell>{item.bill_no || "-"}</TableCell>
+                      <TableCell>{item.vehicle_number || "-"}</TableCell>
+                      <TableCell className="text-xs text-gray-500">
+                        Created: {item.created_by_name || "Super Admin"}{" "}
+                        {item.created_at
+                          ? new Date(item.created_at).toLocaleDateString("en-GB")
+                          : ""}
+                      </TableCell>
+                      <TableCell className="text-center">
+                        <span className="bg-[#10b981] text-white text-xs px-2 py-1 rounded font-bold">
+                          ACTIVATED
+                        </span>
+                      </TableCell>
+                      <TableCell className="text-center">
+                        <div className="flex justify-center gap-2">
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="h-8 w-8 text-green-600 hover:text-green-700 hover:bg-green-50"
+                            onClick={() => handleEdit(item)}
+                          >
+                            <Edit className="h-4 w-4" />
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="h-8 w-8 text-orange-400 hover:text-orange-500 hover:bg-orange-50"
+                            onClick={() => setDeleteId(item.id)}
+                          >
+                            <Trash2 className="h-4 w-4" />
+                          </Button>
+                        </div>
+                      </TableCell>
+                    </TableRow>
+                  ))
                 )}
               </TableBody>
             </Table>
           </div>
+
+          <div className="p-4 border-t text-sm text-gray-500 flex justify-between items-center">
+            <span>
+              Showing 1 to {filteredEntries.length} of {filteredEntries.length} entries
+            </span>
+            <div className="flex gap-1">
+              <Button variant="outline" size="sm" disabled>
+                &larr;
+              </Button>
+              <Button variant="outline" size="sm" className="bg-gray-100">
+                1
+              </Button>
+              <Button variant="outline" size="sm" disabled>
+                &rarr;
+              </Button>
+            </div>
+          </div>
         </CardContent>
       </Card>
+
+      <AlertDialog open={deleteId !== null} onOpenChange={() => setDeleteId(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete Guest Entry?</AlertDialogTitle>
+            <AlertDialogDescription>
+              This action cannot be undone. This will permanently delete the guest entry.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={() => deleteId && deleteMutation.mutate(deleteId)}
+              className="bg-red-600 hover:bg-red-700"
+            >
+              Delete
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }
