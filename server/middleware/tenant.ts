@@ -124,17 +124,14 @@ export async function attachTenantDb(
 
       next();
     } catch (dbError: any) {
-      console.error('🏢 [TENANT] Error getting tenant DB:', dbError);
-      // Return error immediately so the user knows why it failed
-      return res.status(500).json({
-        error: `Failed to connect to tenant database: ${dbError.message || dbError}`
-      });
+      console.error('🏢 [TENANT] Error getting tenant DB (NON-FATAL - Continuing without DB):', dbError);
+      // Do NOT fail the request. Continue without DB so critical routes like feature-access can fallback gracefully.
+      return next();
     }
   } catch (error) {
-    console.error('🏢 [TENANT] Error attaching tenant database:', error);
-    res.status(500).json({
-      error: 'Failed to connect to tenant database'
-    });
+    console.error('🏢 [TENANT] Error in attachTenantDb middleware (NON-FATAL):', error);
+    // Even in outer catch, continue!
+    return next();
   }
 }
 
