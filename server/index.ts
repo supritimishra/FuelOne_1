@@ -249,8 +249,14 @@ app.use((req, res, next) => {
     app.use("/api/users", (await import("./routes/user-management")).userManagementRouter);
 
     // Developer mode / feature access routes
-    app.use("/api/developer-mode", (await import("./routes/developer-mode")).developerModeRouter);
-    app.use("/api/features", (await import("./routes/feature-access")).featureAccessRouter);
+    try {
+      app.use("/api/developer-mode", (await import("./routes/developer-mode")).developerModeRouter);
+    } catch (e) { console.error("Failed to load developer-mode router", e); }
+
+    try {
+      app.use("/api/features", (await import("./routes/feature-access")).featureAccessRouter);
+    } catch (e) { console.error("Failed to load feature-access router", e); }
+
 
     // API routes with authentication and tenant middleware
     try {
