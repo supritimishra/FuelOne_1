@@ -4,11 +4,11 @@ import { db } from "../db.js";
 import {
     saleEntries, nozzles, fuelProducts, dailySaleRates, employees, dutyShifts, users, tanks,
     insertSaleEntrySchema
-} from "../../shared/schema";
+} from "../../shared/schema.js";
 import { eq, desc, and, sql } from "drizzle-orm";
 import {
     Nozzle, DailySaleRate, FuelProduct, Tank, SaleEntry, DutyShift, Employee, User
-} from "../models";
+} from "../models.js";
 
 export const saleEntriesRouter = Router();
 
