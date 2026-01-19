@@ -247,6 +247,60 @@ relationalRouter.delete("/lubricants/:id", async (req: Request, res: Response) =
     }
 });
 
+// Tanks List (Hybrid: Mongo Fallback)
+relationalRouter.get("/tanks", async (req: Request, res: Response) => {
+    try {
+        if (!process.env.DATABASE_URL) {
+            // MongoDB Path
+            const results = await Tank.find({ isActive: true }).sort({ tankNumber: 1 });
+
+            // Map to snake_case for frontend
+            const mapped = results.map(r => ({
+                id: r._id,
+                tank_name: r.tankName,
+                tank_number: r.tankNumber,
+                fuel_product_id: r.fuelProductId,
+                capacity: r.capacity,
+                current_stock: r.currentStock,
+                is_active: r.isActive,
+                created_at: r.createdAt
+            }));
+            return res.json({ success: true, ok: true, rows: mapped, data: mapped });
+        }
+
+        // Postgres Path
+        const results = await db.select().from(tanks).where(eq(tanks.isActive, true));
+        res.json({ success: true, ok: true, rows: results, data: results });
+    } catch (error: any) {
+        res.status(500).json({ success: false, error: error.message });
+    }
+});
+
+// Nozzles List (simple) - specific endpoint requested by frontend
+relationalRouter.get("/nozzles", async (req: Request, res: Response) => {
+    try {
+        if (!process.env.DATABASE_URL) {
+            // MongoDB Path
+            const results = await Nozzle.find({ isActive: true });
+            const mapped = results.map(n => ({
+                id: n._id,
+                nozzle_number: n.nozzleNumber,
+                pump_station: n.pumpStation,
+                fuel_product_id: n.fuelProductId,
+                tank_id: n.tankId,
+                is_active: n.isActive
+            }));
+            return res.json({ success: true, ok: true, rows: mapped, data: mapped });
+        }
+
+        // Postgres Path
+        const results = await db.select().from(nozzles).where(eq(nozzles.isActive, true));
+        res.json({ success: true, ok: true, rows: results, data: results });
+    } catch (error: any) {
+        res.status(500).json({ success: false, error: error.message });
+    }
+});
+
 // Nozzles List (Hybrid: Mongo Fallback)
 relationalRouter.get("/nozzles-list", async (req: Request, res: Response) => {
     try {
