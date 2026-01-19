@@ -1,6 +1,6 @@
 
 import { Router, Request, Response } from "express";
-import { db } from "../db";
+import { db } from "../db.js";
 import {
     saleEntries, nozzles, fuelProducts, dailySaleRates, employees, dutyShifts, users, tanks,
     insertSaleEntrySchema
