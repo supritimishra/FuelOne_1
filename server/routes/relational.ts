@@ -257,7 +257,7 @@ relationalRouter.get("/tanks", async (req: Request, res: Response) => {
             // Map to snake_case for frontend
             const mapped = results.map(r => ({
                 id: r._id,
-                tank_name: r.tankName,
+                tank_name: r.tankNumber, // Using tankNumber as name since tankName doesn't exist
                 tank_number: r.tankNumber,
                 fuel_product_id: r.fuelProductId,
                 capacity: r.capacity,
@@ -269,7 +269,7 @@ relationalRouter.get("/tanks", async (req: Request, res: Response) => {
         }
 
         // Postgres Path
-        const results = await db.select().from(tanks).where(eq(tanks.isActive, true));
+        const results = await db.select().from(tanks);
         res.json({ success: true, ok: true, rows: results, data: results });
     } catch (error: any) {
         res.status(500).json({ success: false, error: error.message });
