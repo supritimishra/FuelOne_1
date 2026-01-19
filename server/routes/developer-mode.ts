@@ -991,8 +991,8 @@ export async function loadFeatureCatalog(tenantDb: any, tenantId?: string) {
   } catch (tableError: any) {
     const errorMsg = String(tableError?.message || tableError || '');
     const errorCode = (tableError?.cause && typeof tableError.cause === 'object') ? (tableError.cause as any).code : undefined;
-    if (errorCode === '42P01' || errorMsg.includes('does not exist') || errorMsg.includes('relation') || errorMsg.includes('42P01') || errorMsg === 'empty_feature_permissions') {
-      console.warn("Feature permissions table missing or empty. Seeding defaults...", { errorMsg, errorCode });
+    if (errorCode === '42P01' || errorMsg.includes('does not exist') || errorMsg.includes('relation') || errorMsg.includes('42P01') || errorMsg === 'empty_feature_permissions' || errorMsg.includes('Mongo-only mode')) {
+      console.warn("Feature permissions table missing, empty, or Mongo-only mode. Seeding/Synthesizing defaults...", { errorMsg, errorCode });
       try {
         const { BASIC_FEATURES, ADVANCED_FEATURES } = await import('../feature-defaults.js');
         const defaultRows: Array<Record<string, any>> = [];
@@ -1014,6 +1014,20 @@ export async function loadFeatureCatalog(tenantDb: any, tenantId?: string) {
             defaultEnabled: false,
           });
         }
+
+        // If Mongo-only mode, return synthesized features immediately without trying to write to DB
+        if (errorMsg.includes('Mongo-only mode')) {
+          console.log("[DeveloperMode] Mongo-only mode detected. Returning synthesized features directly.");
+          return defaultRows.sort((a: any, b: any) => {
+            const groupA = (a.featureGroup || '').toLowerCase();
+            const groupB = (b.featureGroup || '').toLowerCase();
+            if (groupA === groupB) {
+              return a.label.localeCompare(b.label);
+            }
+            return groupA.localeCompare(groupB);
+          });
+        }
+
 
         // Get pool for raw SQL - use tenantId if available, otherwise skip seeding
         let pool: import('pg').Pool | null = null;
