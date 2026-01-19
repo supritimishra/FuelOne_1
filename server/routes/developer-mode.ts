@@ -1048,7 +1048,7 @@ export async function loadFeatureCatalog(tenantDb: any, tenantId?: string) {
     return [];
   }
 }
-}
+
 
 function titleCaseFeatureKey(featureKey: string): string {
   return featureKey
