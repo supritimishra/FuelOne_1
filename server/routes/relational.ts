@@ -35,7 +35,7 @@ import {
     InterestTransaction, SheetRecord, TankerSale, GuestSale,
     Attendance, DutyPayRecord, SalesOfficerInspection, CreditRequest,
     ExpiryItem, Feedback, DayCashMovement, CreditCustomer, FuelProduct, Employee, ExpenseType,
-    Tank, Nozzle, LubricantProduct, TankDailyReading
+    Tank, Nozzle, LubricantProduct, TankDailyReading, SwipeTransaction, SwipeMachine
 } from "../models.js";
 
 export const relationalRouter = Router();
@@ -1576,16 +1576,85 @@ relationalRouter.get("/denominations", async (req: Request, res: Response) => {
 
 relationalRouter.get("/swipe-transactions", async (req: Request, res: Response) => {
     try {
-        const { from_date, to_date } = req.query;
-        let conditions = [];
-        if (from_date) conditions.push(gte(swipeTransactions.transactionDate, String(from_date)));
-        if (to_date) conditions.push(lte(swipeTransactions.transactionDate, String(to_date)));
+        const { from_date, to_date, mode } = req.query;
+        let query: any = {};
+        if (from_date && to_date) {
+            query.transactionDate = {
+                $gte: new Date(String(from_date)),
+                $lte: new Date(String(to_date))
+            };
+        }
+        if (mode && mode !== 'all') {
+            query.swipeMode = mode;
+        }
 
-        const results = await db.select().from(swipeTransactions)
-            .where(and(...conditions))
-            .orderBy(desc(swipeTransactions.transactionDate));
+        const results = await SwipeTransaction.find(query).sort({ transactionDate: -1 });
 
-        res.json({ success: true, rows: results, ok: true });
+        // Enrich with employee names
+        const employees = await Employee.find({}, 'employeeName _id');
+        const empMap = new Map(employees.map(e => [String(e._id), e.employeeName]));
+
+        const mapped = results.map(r => ({
+            id: r._id,
+            transaction_date: r.transactionDate,
+            employee_id: r.employeeId,
+            employee_name: empMap.get(r.employeeId) || 'Unknown',
+            swipe_type: r.swipeType,
+            swipe_mode: r.swipeMode,
+            amount: r.amount,
+            batch_number: r.batchNumber,
+            shift: r.shift,
+            note: r.note,
+            image_url: r.imageUrl,
+            created_at: r.createdAt
+        }));
+
+        res.json({ success: true, rows: mapped, ok: true });
+    } catch (error: any) {
+        res.status(500).json({ success: false, error: error.message });
+    }
+});
+
+relationalRouter.post("/swipe-transactions", async (req: Request, res: Response) => {
+    try {
+        const body = req.body;
+        // Basic validation
+        if (!body.employee_id || !body.amount) {
+            return res.status(400).json({ success: false, error: "Missing required fields" });
+        }
+
+        const newTransaction = new SwipeTransaction({
+            employeeId: body.employee_id,
+            swipeType: body.swipe_type,
+            swipeMode: body.swipe_mode,
+            batchNumber: body.batch_number,
+            amount: body.amount,
+            transactionDate: body.transaction_date || new Date(),
+            shift: body.shift,
+            note: body.note,
+            imageUrl: body.image_url
+        });
+
+        const saved = await newTransaction.save();
+        res.json({ success: true, data: { ...saved.toObject(), id: saved._id }, ok: true });
+    } catch (error: any) {
+        res.status(400).json({ success: false, error: error.message });
+    }
+});
+
+relationalRouter.get("/swipe-machines", async (req: Request, res: Response) => {
+    try {
+        const results = await SwipeMachine.find({ status: 'Active' }).sort({ machineName: 1 });
+        const mapped = results.map(r => ({
+            id: r._id,
+            machine_name: r.machineName,
+            machine_type: r.machineType,
+            provider: r.provider,
+            machine_id: r.machineId,
+            status: r.status,
+            created_at: r.createdAt
+        }));
+        res.json({ success: true, rows: mapped, ok: true });
     } catch (error: any) {
         res.status(500).json({ success: false, error: error.message });
     }

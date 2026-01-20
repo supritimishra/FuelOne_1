@@ -731,3 +731,67 @@ const TankDailyReadingSchema = new Schema<ITankDailyReading>({
 TankDailyReadingSchema.index({ readingDate: 1, tankId: 1 }, { unique: true });
 
 export const TankDailyReading = mongoose.model<ITankDailyReading>('TankDailyReading', TankDailyReadingSchema);
+
+// ==========================================
+// 3.23 Swipe Transactions (MongoDB)
+// ==========================================
+export interface ISwipeTransaction extends Document {
+    transactionDate: Date;
+    employeeId: string; // Reference to Employee
+    swipeType: string;
+    swipeMode: string;
+    batchNumber?: string;
+    amount: number;
+    shift?: string;
+    note?: string;
+    imageUrl?: string;
+    createdBy?: string;
+    createdAt: Date;
+}
+
+const SwipeTransactionSchema = new Schema<ISwipeTransaction>({
+    transactionDate: { type: Date, default: Date.now },
+    employeeId: { type: String, required: true },
+    swipeType: { type: String },
+    swipeMode: { type: String },
+    batchNumber: { type: String },
+    amount: { type: Number, required: true },
+    shift: { type: String },
+    note: { type: String },
+    imageUrl: { type: String },
+    createdBy: { type: String },
+}, { timestamps: true });
+
+export const SwipeTransaction = mongoose.model<ISwipeTransaction>('SwipeTransaction', SwipeTransactionSchema);
+
+// ==========================================
+// 3.24 Swipe Machines (MongoDB)
+// ==========================================
+export interface ISwipeMachine extends Document {
+    machineName: string;
+    machineType: string;
+    provider: string;
+    machineId?: string;
+    status: string;
+    attachType?: string;
+    bankType?: string;
+    vendorId?: string;
+    createdBy?: string;
+    createdAt: Date;
+}
+
+const SwipeMachineSchema = new Schema<ISwipeMachine>({
+    _id: { type: String, required: true } as any, // Allow string UUIDs
+    machineName: { type: String, required: true },
+    machineType: { type: String, required: true },
+    provider: { type: String, required: true },
+    machineId: { type: String },
+    status: { type: String, default: 'Active' },
+    attachType: { type: String },
+    bankType: { type: String },
+    vendorId: { type: String },
+    createdBy: { type: String },
+}, { timestamps: true });
+
+export const SwipeMachine = mongoose.model<ISwipeMachine>('SwipeMachine', SwipeMachineSchema);
+
