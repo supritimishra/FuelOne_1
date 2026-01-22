@@ -107,9 +107,9 @@ export function AppSidebar() {
         console.log(`[AppSidebar] Migrations run but empty features - ALL disabled, hiding ${featureKey}`);
         return false;
       }
-      // migrationsRun is null (unknown) - do not fail-open
-      console.warn(`[AppSidebar] Empty catalog, migrationsRun unknown - hiding ${featureKey}`);
-      return false;
+      // migrationsRun is null (unknown) - fail-open (backward compatible)
+      console.warn(`[AppSidebar] Empty catalog, migrationsRun unknown - allowing ${featureKey} (fail-open)`);
+      return true;
     }
 
     // If we have features loaded, check the actual permission
