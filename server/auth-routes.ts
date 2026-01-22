@@ -10,7 +10,8 @@ import {
   registerTenantUser,
   getTenantByEmail,
   getTenantByUserEmail,
-  getTenantById
+  getTenantById,
+  runTenantMigrations
 } from './services/tenant-provisioning.js';
 import { getTenantDb } from './services/db-connection-manager.js';
 import { BASIC_FEATURES } from './feature-defaults.js';
@@ -502,13 +503,41 @@ authRouter.post('/login', async (req, res) => {
     } catch (dbError: any) {
       console.error(`❌ [AUTH] Failed to query tenant database (${tenant.id}):`, dbError);
 
-      // Check for common connection issues
-      if (dbError.code === 'ECONNREFUSED' || dbError.message?.includes('connection') || dbError.message?.includes('SSL')) {
+      // SELF-HEALING: If table doesn't exist (42P01), try running migrations and retry
+      if (dbError.code === '42P01') {
+        console.log(`⚠️ [AUTH] Missing tables detected for tenant ${tenant.id}. Attempting self-repair...`);
+        try {
+          const success = await runTenantMigrations(tenant.connectionString);
+          if (success) {
+            console.log(`✅ [AUTH] Self-repair successful. Retrying login...`);
+            const [retryUser] = await tenantDb
+              .select()
+              .from(users)
+              .where(
+                sql`LOWER(${users.email}) = ${userInput} OR LOWER(${users.username}) = ${userInput}`
+              )
+              .limit(1);
+            user = retryUser;
+            // If user is found now, proceed!
+            if (!user) {
+              console.warn(`⚠️ [AUTH] Repair succeeded but user not found. User might be missing.`);
+            }
+          } else {
+            console.error(`❌ [AUTH] Self-repair failed.`);
+            return res.status(500).json({ error: 'Organization database is corrupted and repair failed.' });
+          }
+        } catch (repairErr: any) {
+          console.error(`❌ [AUTH] Self-repair crashed:`, repairErr);
+          return res.status(500).json({ error: 'Organization database corrupted (Repair crashed).' });
+        }
+      } else if (dbError.code === 'ECONNREFUSED' || dbError.message?.includes('connection') || dbError.message?.includes('SSL')) {
+        // Check for common connection issues
         return res.status(500).json({
           error: 'Could not connect to organization database. This may be a configuration issue.'
         });
+      } else {
+        throw dbError; // Re-throw other errors to be caught by main catch
       }
-      throw dbError; // Re-throw other errors to be caught by main catch
     }
 
     if (!user) {
