@@ -134,6 +134,12 @@ const getCookieDomain = () => {
     return '.vercel.app';
   }
 
+  // For Render URLs, don't set domain (let browser handle it)
+  // Render uses *.onrender.com which requires no domain setting
+  if (process.env.RENDER || process.env.RENDER_URL?.includes('onrender.com')) {
+    return undefined;
+  }
+
   // For custom domains, use the specific domain from env var
   return process.env.COOKIE_DOMAIN || undefined;
 };
@@ -242,11 +248,12 @@ authRouter.post('/register', async (req, res) => {
     });
 
     // Set cookie and respond
+    const isProduction = process.env.NODE_ENV === 'production';
     res.cookie('token', token, {
       httpOnly: true,
-      secure: false, // Set to false for localhost development
-      sameSite: 'lax', // Use 'lax' for localhost development
-      domain: undefined, // Don't set domain for localhost
+      secure: isProduction, // Use secure cookies in production (HTTPS required)
+      sameSite: isProduction ? 'none' : 'lax', // 'none' for cross-site in production, 'lax' for development
+      domain: getCookieDomain(),
       path: '/',
       maxAge: 7 * 24 * 60 * 60 * 1000, // 7 days
     });
@@ -313,7 +320,7 @@ authRouter.post('/login', async (req, res) => {
       // We'll look for *any* active tenant or a specific one if implemented.
       // For now, let's look for a tenant related to this user if possible, or just the first active tenant.
 
-      let tenant = null;
+      let tenant: any = null;
       if (requestedTenantIdRaw) {
         tenant = await Tenant.findById(requestedTenantIdRaw);
       } else {
@@ -336,11 +343,12 @@ authRouter.post('/login', async (req, res) => {
         tenantId: (tenant as any)._id.toString()
       });
 
+      const isProduction = process.env.NODE_ENV === 'production';
       res.cookie('token', token, {
         httpOnly: true,
-        secure: false, // Set to false for localhost development
-        sameSite: 'lax',
-        domain: undefined,
+        secure: isProduction, // Use secure cookies in production (HTTPS required)
+        sameSite: isProduction ? 'none' : 'lax', // 'none' for cross-site in production, 'lax' for development
+        domain: getCookieDomain(),
         path: '/',
         maxAge: 7 * 24 * 60 * 60 * 1000, // 7 days
       });
@@ -598,11 +606,12 @@ authRouter.post('/login', async (req, res) => {
     });
 
     // Set cookie and respond
+    const isProduction = process.env.NODE_ENV === 'production';
     res.cookie('token', token, {
       httpOnly: true,
-      secure: false, // Set to false for localhost development
-      sameSite: 'lax', // Use 'lax' for localhost development
-      domain: undefined, // Don't set domain for localhost
+      secure: isProduction, // Use secure cookies in production (HTTPS required)
+      sameSite: isProduction ? 'none' : 'lax', // 'none' for cross-site in production, 'lax' for development
+      domain: getCookieDomain(),
       path: '/',
       maxAge: 7 * 24 * 60 * 60 * 1000, // 7 days
     });
@@ -694,11 +703,12 @@ authRouter.post('/switch-user', authenticateToken, attachTenantDb, async (req: A
     });
 
     // Set cookie with new token
+    const isProduction = process.env.NODE_ENV === 'production';
     res.cookie('token', token, {
       httpOnly: true,
-      secure: false,
-      sameSite: 'lax',
-      domain: undefined,
+      secure: isProduction, // Use secure cookies in production (HTTPS required)
+      sameSite: isProduction ? 'none' : 'lax', // 'none' for cross-site in production, 'lax' for development
+      domain: getCookieDomain(),
       path: '/',
       maxAge: 7 * 24 * 60 * 60 * 1000, // 7 days
     });
