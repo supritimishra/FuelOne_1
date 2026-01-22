@@ -483,13 +483,27 @@ authRouter.post('/login', async (req, res) => {
     const tenantDb = getTenantDb(tenant.connectionString, tenant.id);
 
     // Step 3: Find user in tenant database by email OR username
-    const [user] = await tenantDb
-      .select()
-      .from(users)
-      .where(
-        sql`LOWER(${users.email}) = ${userInput} OR LOWER(${users.username}) = ${userInput}`
-      )
-      .limit(1);
+    let user;
+    try {
+      const [foundUser] = await tenantDb
+        .select()
+        .from(users)
+        .where(
+          sql`LOWER(${users.email}) = ${userInput} OR LOWER(${users.username}) = ${userInput}`
+        )
+        .limit(1);
+      user = foundUser;
+    } catch (dbError: any) {
+      console.error(`❌ [AUTH] Failed to query tenant database (${tenant.id}):`, dbError);
+
+      // Check for common connection issues
+      if (dbError.code === 'ECONNREFUSED' || dbError.message?.includes('connection') || dbError.message?.includes('SSL')) {
+        return res.status(500).json({
+          error: 'Could not connect to organization database. This may be a configuration issue.'
+        });
+      }
+      throw dbError; // Re-throw other errors to be caught by main catch
+    }
 
     if (!user) {
       return res.status(401).json({ error: 'Invalid email/username or password' });
