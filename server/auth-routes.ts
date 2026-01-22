@@ -480,7 +480,13 @@ authRouter.post('/login', async (req, res) => {
     }
 
     // Step 2: Connect to tenant's database
-    const tenantDb = getTenantDb(tenant.connectionString, tenant.id);
+    let tenantDb;
+    try {
+      tenantDb = getTenantDb(tenant.connectionString, tenant.id);
+    } catch (poolError: any) {
+      console.error(`❌ [AUTH] Failed to initialize tenant DB pool (${tenant.id}):`, poolError);
+      return res.status(500).json({ error: 'Failed to connect to organization database (Connection Init)' });
+    }
 
     // Step 3: Find user in tenant database by email OR username
     let user;
@@ -587,9 +593,12 @@ authRouter.post('/login', async (req, res) => {
         organizationName: tenant.organizationName,
       },
     });
-  } catch (error) {
+  } catch (error: any) {
     console.error('Login error:', error);
-    res.status(500).json({ error: 'Failed to login' });
+    res.status(500).json({
+      error: 'Failed to login',
+      details: error?.message || String(error)
+    });
   }
 });
 
