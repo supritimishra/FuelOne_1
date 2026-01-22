@@ -38,6 +38,29 @@ export function clearTenantCache(tenantId: string): void {
  * Gets or creates a database connection pool for a tenant
  */
 export function getTenantPool(connectionString: string, tenantId: string): Pool {
+  // AUTO-FIX: In production, if connection string is localhost, try to replace with MASTER DB host
+  if (process.env.NODE_ENV === 'production' && (connectionString.includes('localhost') || connectionString.includes('127.0.0.1'))) {
+    if (process.env.DATABASE_URL) {
+      try {
+        const masterUrl = new URL(process.env.DATABASE_URL);
+        const tenantUrl = new URL(connectionString);
+        // Copy host and port from master
+        tenantUrl.hostname = masterUrl.hostname;
+        tenantUrl.port = masterUrl.port;
+        // Also maybe auth? Usually same user/pass if provisioning from same app
+        if (tenantUrl.username === 'postgres' && masterUrl.username !== 'postgres') {
+          tenantUrl.username = masterUrl.username;
+          tenantUrl.password = masterUrl.password;
+        }
+        const newConnString = tenantUrl.toString();
+        console.log(`🔧 [DB] Auto-fixed localhost connection string for tenant ${tenantId} to use master host`);
+        connectionString = newConnString;
+      } catch (e) {
+        console.warn(`⚠️ [DB] Failed to auto-fix localhost connection string:`, e);
+      }
+    }
+  }
+
   let pool = tenantConnectionPools.get(tenantId);
 
   if (!pool) {
