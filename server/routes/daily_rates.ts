@@ -52,7 +52,7 @@ dailyRatesRouter.get("/daily-sale-rates", async (req: Request, res: Response) =>
         }
 
         // Postgres Path
-        const conditions = undefined;
+        let conditions = undefined;
         if (date) {
             conditions = eq(dailySaleRates.rateDate, String(date));
         } else if (from && to) {

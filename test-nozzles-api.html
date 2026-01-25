@@ -1,0 +1,68 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Test Nozzles API</title>
+</head>
+<body>
+    <h1>Test Nozzles API</h1>
+    <button onclick="testNozzlesList()">Test GET /api/nozzles-list</button>
+    <button onclick="testNozzlesListWithTank()">Test GET /api/nozzles-list?tank_id=xxx</button>
+    <button onclick="testCreateNozzle()">Test POST /api/nozzles-list</button>
+    <pre id="output"></pre>
+
+    <script>
+        const output = document.getElementById('output');
+
+        async function testNozzlesList() {
+            try {
+                const response = await fetch('/api/nozzles-list', {
+                    credentials: 'include'
+                });
+                const data = await response.json();
+                output.textContent = 'GET /api/nozzles-list:\n' + JSON.stringify(data, null, 2);
+            } catch (error) {
+                output.textContent = 'Error: ' + error.message;
+            }
+        }
+
+        async function testNozzlesListWithTank() {
+            // You'll need to replace this with an actual tank ID from your database
+            const tankId = prompt('Enter tank ID:');
+            if (!tankId) return;
+            
+            try {
+                const response = await fetch(`/api/nozzles-list?tank_id=${tankId}`, {
+                    credentials: 'include'
+                });
+                const data = await response.json();
+                output.textContent = `GET /api/nozzles-list?tank_id=${tankId}:\n` + JSON.stringify(data, null, 2);
+            } catch (error) {
+                output.textContent = 'Error: ' + error.message;
+            }
+        }
+
+        async function testCreateNozzle() {
+            const nozzleNumber = prompt('Enter nozzle number:');
+            if (!nozzleNumber) return;
+            
+            const tankId = prompt('Enter tank ID (optional):');
+            
+            try {
+                const response = await fetch('/api/nozzles-list', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    credentials: 'include',
+                    body: JSON.stringify({
+                        nozzle_number: nozzleNumber,
+                        tank_id: tankId || null
+                    })
+                });
+                const data = await response.json();
+                output.textContent = 'POST /api/nozzles-list:\n' + JSON.stringify(data, null, 2);
+            } catch (error) {
+                output.textContent = 'Error: ' + error.message;
+            }
+        }
+    </script>
+</body>
+</html>
