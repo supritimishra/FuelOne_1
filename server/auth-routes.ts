@@ -288,7 +288,6 @@ authRouter.post('/login', async (req, res) => {
     if (!process.env.DATABASE_URL) {
       const { User, Tenant } = await import('./models.js');
 
-      // 1. Find User
       const user = await User.findOne({
         $or: [{ email: userInput }, { username: userInput }]
       });
@@ -303,7 +302,7 @@ authRouter.post('/login', async (req, res) => {
         return res.status(401).json({ error: 'Invalid email/username or password' });
       }
 
-      if (user.status !== 'active') {
+      if (user.status && user.status !== 'active') {
         return res.status(403).json({ error: 'Your account is disabled' });
       }
 

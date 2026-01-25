@@ -47,7 +47,7 @@ relationalRouter.get("/fuel-products", async (req: Request, res: Response) => {
     try {
         const results = await FuelProduct.find().sort({ createdAt: 1 });
         // Map to snake_case for frontend compatibility
-        const mapped = results.map(r => ({
+        const mapped = results.map((r: any) => ({
             id: r._id,
             product_name: r.productName,
             short_name: r.shortName,
@@ -136,7 +136,7 @@ relationalRouter.get("/lubricants", async (req: Request, res: Response) => {
         if (!process.env.DATABASE_URL) {
             // MongoDB Path
             const results = await LubricantProduct.find({ isActive: true }).sort({ createdAt: -1 });
-            const mapped = results.map(r => ({
+            const mapped = results.map((r: any) => ({
                 ...r.toObject(),
                 id: r._id,
                 lubricant_name: r.productName,
@@ -155,7 +155,7 @@ relationalRouter.get("/lubricants", async (req: Request, res: Response) => {
         // Postgres Path
         const results = await db.select().from(lubricantsTable).where(eq(lubricantsTable.isActive, true));
 
-        const mapped = results.map(r => ({
+        const mapped = results.map((r: any) => ({
             id: r.id,
             lubricant_name: r.lubricantName,
             gst_percentage: r.gstPercentage,
@@ -300,7 +300,7 @@ relationalRouter.get("/employees", async (req: Request, res: Response) => {
         if (!process.env.DATABASE_URL) {
             // MongoDB Path
             const results = await Employee.find({ isActive: true }).sort({ createdAt: -1 });
-            const mapped = results.map(r => ({
+            const mapped = results.map((r: any) => ({
                 ...r.toObject(),
                 id: r._id,
                 employee_name: r.employeeName,
@@ -315,7 +315,7 @@ relationalRouter.get("/employees", async (req: Request, res: Response) => {
 
         // Postgres Path
         const results = await db.select().from(employees).where(eq(employees.isActive, true));
-        const mapped = results.map(r => ({
+        const mapped = results.map((r: any) => ({
             ...r,
             id: r.id,
             employee_name: r.employeeName,
@@ -468,7 +468,7 @@ relationalRouter.post("/day-cash-movements", async (req: Request, res: Response)
 relationalRouter.get("/day-cash-movements", async (req: Request, res: Response) => {
     try {
         const results = await DayCashMovement.find().sort({ date: -1 });
-        const mapped = results.map(r => ({ ...r.toObject(), id: r._id }));
+        const mapped = results.map((r: any) => ({ ...r.toObject(), id: r._id }));
         res.json({ success: true, data: mapped });
     } catch (error: any) {
         res.status(500).json({ success: false, error: error.message });
@@ -551,7 +551,7 @@ relationalRouter.post("/tanker-sales", async (req: Request, res: Response) => {
 relationalRouter.get("/tanker-sales", async (req: Request, res: Response) => {
     try {
         const results = await TankerSale.find().sort({ saleDate: -1 });
-        const mapped = results.map(r => ({
+        const mapped = results.map((r: any) => ({
             id: r._id,
             sale_date: r.saleDate,
             fuel_product_id: r.fuelProductId,
@@ -644,7 +644,7 @@ relationalRouter.get("/guest-sales", async (req: Request, res: Response) => {
             products.forEach(p => productsMap[String(p._id)] = p.productName);
         }
 
-        const mappedResults = results.map(r => ({
+        const mappedResults = results.map((r: any) => ({
             ...r.toObject(),
             id: r._id,
             productName: r.fuelProductId ? productsMap[r.fuelProductId] : ''
@@ -724,7 +724,7 @@ relationalRouter.get("/attendance/details", async (req: Request, res: Response) 
             });
         }
 
-        const mapped = results.map(r => ({
+        const mapped = results.map((r: any) => ({
             ...r.toObject(),
             id: r._id,
             employeeName: employeeMap[r.employeeId]?.name || 'Unknown',
@@ -925,7 +925,7 @@ relationalRouter.post("/sales-officer", async (req: Request, res: Response) => {
 relationalRouter.get("/credit-customers", async (req: Request, res: Response) => {
     try {
         const results = await CreditCustomer.find({ isActive: true }).sort({ createdAt: -1 });
-        const mapped = results.map(r => ({ ...r.toObject(), id: r._id }));
+        const mapped = results.map((r: any) => ({ ...r.toObject(), id: r._id }));
         res.json({ success: true, ok: true, data: mapped, rows: mapped });
     } catch (error: any) {
         res.status(500).json({ success: false, error: error.message });

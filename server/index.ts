@@ -12,7 +12,7 @@ import { createServer as createViteServer } from "vite";
 const app = express();
 const PORT = Number(process.env.PORT) || 5000;
 
-console.log("!!! SERVER STARTING - DEBUG VERSION 1 !!!");
+console.log("!!! SERVER STARTING !!!");
 
 // Simple request audit log to help diagnose timeouts (appends to server_requests.log)
 const reqLogFile = path.resolve(process.cwd(), 'server_requests.log');

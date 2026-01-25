@@ -32,7 +32,7 @@ const InterestTransactionSchema = new Schema<IInterestTransaction>({
     createdBy: { type: String },
 }, { timestamps: true });
 
-export const InterestTransaction = mongoose.model<IInterestTransaction>('InterestTransaction', InterestTransactionSchema);
+export const InterestTransaction = mongoose.models.InterestTransaction || mongoose.model<IInterestTransaction>('InterestTransaction', InterestTransactionSchema);
 
 // ==========================================
 // 3.2 Sheet Records
@@ -55,7 +55,7 @@ const SheetRecordSchema = new Schema<ISheetRecord>({
     createdBy: { type: String },
 }, { timestamps: true });
 
-export const SheetRecord = mongoose.model<ISheetRecord>('SheetRecord', SheetRecordSchema);
+export const SheetRecord = mongoose.models.SheetRecord || mongoose.model<ISheetRecord>('SheetRecord', SheetRecordSchema);
 
 // ==========================================
 // 3.3 Day Cash Movements
@@ -75,7 +75,7 @@ const DayCashMovementSchema = new Schema<IDayCashMovement>({
     notes: { type: String },
 }, { timestamps: true });
 
-export const DayCashMovement = mongoose.model<IDayCashMovement>('DayCashMovement', DayCashMovementSchema);
+export const DayCashMovement = mongoose.models.DayCashMovement || mongoose.model<IDayCashMovement>('DayCashMovement', DayCashMovementSchema);
 
 
 // ==========================================
@@ -528,8 +528,6 @@ const TenantSchema = new Schema<ITenant>({
     connectionString: { type: String },
 }, { timestamps: true });
 
-export const Tenant = mongoose.model<ITenant>('Tenant', TenantSchema);
-
 // 4.2 Users (Per Tenant DB)
 export interface IUser extends Document {
     email: string;
@@ -550,7 +548,8 @@ const UserSchema = new Schema<IUser>({
     status: { type: String, default: 'active' },
 }, { timestamps: true });
 
-export const User = mongoose.model<IUser>('User', UserSchema);
+export const Tenant = mongoose.models.Tenant || mongoose.model<ITenant>('Tenant', TenantSchema);
+export const User = mongoose.models.User || mongoose.model<IUser>('User', UserSchema);
 
 // 4.3 Tenant User Mapping (Master DB)
 export interface ITenantUser extends Document {

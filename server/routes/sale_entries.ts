@@ -80,9 +80,9 @@ saleEntriesRouter.get("/nozzles-with-last-readings", async (req: Request, res: R
             .where(eq(dailySaleRates.rateDate, dateStr));
 
         const ratesMap = new Map();
-        rates.forEach(r => ratesMap.set(r.fuelProductId, r.closeRate));
+        rates.forEach((r: any) => ratesMap.set(r.fuelProductId, r.closeRate));
 
-        const rows = await Promise.all(activeNozzles.map(async (n) => {
+        const rows = await Promise.all(activeNozzles.map(async (n: any) => {
             // Get last closing reading
             const lastEntry = await db.select({ closingReading: saleEntries.closingReading })
                 .from(saleEntries)

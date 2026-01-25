@@ -1,17 +1,31 @@
 import mongoose from 'mongoose';
 
 const creditCustomerSchema = new mongoose.Schema({
-    tenantId: { type: String, required: true, index: true },
-    organizationName: { type: String, required: true }, // Customer Name
-    phoneNumber: { type: String },
-    mobileNumber: { type: String },
+    tenantId: { type: String, index: true }, // Keep for future use if added
+    organization_name: { type: String, required: true },
+    tin_gst_no: { type: String },
+    representative_name: { type: String },
+    organization_address: { type: String },
+    phone_number: { type: String },
+    mobile_number: { type: String },
     email: { type: String },
-    address: { type: String },
-    creditLimit: { type: Number, default: 0 },
-    openingBalance: { type: Number, default: 0 },
-    currentBalance: { type: Number, default: 0 },
-    vehicleNumber: { type: String }, // Some customers are associated with vehicles
-    isActive: { type: Boolean, default: true },
-}, { timestamps: true });
+    credit_limit: { type: Number, default: 0 },
+    opening_balance: { type: Number, default: 0 },
+    current_balance: { type: Number, default: 0 },
+    vehicle_no: { type: String },
+    is_active: { type: Boolean, default: true },
+    registered_date: { type: String },
+    created_at: { type: Date, default: Date.now },
+    updated_at: { type: Date, default: Date.now }
+}, {
+    collection: 'credit_customers',
+    timestamps: { createdAt: 'created_at', updatedAt: 'updated_at' }
+});
 
-export const CreditCustomer = mongoose.models.CreditCustomer || mongoose.model('CreditCustomer', creditCustomerSchema);
+// Force new model construction to pick up schema/collection changes
+if (mongoose.models.CreditCustomer) {
+    delete (mongoose.models as any).CreditCustomer;
+}
+
+export const CreditCustomer = mongoose.model('CreditCustomer', creditCustomerSchema);
+console.log('✅ CreditCustomer model initialized with collection:', creditCustomerSchema.get('collection'));
