@@ -9,8 +9,9 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { useToast } from "@/hooks/use-toast";
-import { Trash2, Plus, Search, Pencil, Eye, Lock } from "lucide-react";
+import { Trash2, Plus, Pencil, Eye, X } from "lucide-react";
 import { Textarea } from "@/components/ui/textarea";
 import { Checkbox } from "@/components/ui/checkbox";
 
@@ -22,16 +23,35 @@ const employeeFormSchema = z.object({
   mobile_number: z.string().optional(),
   id_proof_no: z.string().optional(),
   designation: z.string().min(1, "Designation is required"),
-  salary_type: z.enum(["Monthly", "Daily", "Hourly"]),
+  salary_type: z.enum(["Monthly", "Daily", "Hourly", "Per Duty"]),
   salary: z.coerce.number().min(0, "Salary must be positive"),
   address: z.string().optional(),
   description: z.string().optional(),
   has_pf: z.boolean().default(false),
   has_esi: z.boolean().default(false),
   has_income_tax: z.boolean().default(false),
+  image_url: z.string().optional(),
 });
 
 type EmployeeFormData = z.infer<typeof employeeFormSchema>;
+
+interface EmployeeRow {
+  tempId: string;
+  join_date: string;
+  employee_name: string;
+  employee_number: string;
+  mobile_number: string;
+  id_proof_no: string;
+  designation: string;
+  salary_type: string;
+  salary: number | string;
+  address: string;
+  description: string;
+  has_pf: boolean;
+  has_esi: boolean;
+  has_income_tax: boolean;
+  image_url: string;
+}
 
 const Employees = () => {
   const [employees, setEmployees] = useState<any[]>([]);
@@ -39,6 +59,27 @@ const Employees = () => {
   const [deleteConfirm, setDeleteConfirm] = useState<string | null>(null);
   const [searchTerm, setSearchTerm] = useState("");
   const [isLoading, setIsLoading] = useState(true);
+  const [uploadedImage, setUploadedImage] = useState<string | null>(null);
+  const [viewingImage, setViewingImage] = useState<{ url: string; name: string } | null>(null);
+  const [formRows, setFormRows] = useState<EmployeeRow[]>([
+    {
+      tempId: crypto.randomUUID(),
+      join_date: new Date().toISOString().split('T')[0],
+      employee_name: "",
+      employee_number: "",
+      mobile_number: "",
+      id_proof_no: "",
+      designation: "",
+      salary_type: "Per Duty",
+      salary: 0,
+      address: "",
+      description: "",
+      has_pf: false,
+      has_esi: false,
+      has_income_tax: false,
+      image_url: "",
+    },
+  ]);
   const { toast } = useToast();
 
   const form = useForm<EmployeeFormData>({
@@ -50,13 +91,14 @@ const Employees = () => {
       mobile_number: "",
       id_proof_no: "",
       designation: "",
-      salary_type: "Monthly",
+      salary_type: "Per Duty",
       salary: 0,
       address: "",
       description: "",
       has_pf: false,
       has_esi: false,
       has_income_tax: false,
+      image_url: "",
     }
   });
 
@@ -92,14 +134,50 @@ const Employees = () => {
     fetchEmployees();
   }, [fetchEmployees]);
 
-  const onSubmit = async (data: EmployeeFormData) => {
-    const submitData = {
-      ...data,
-      phone_no: data.mobile_number, // Mapping for backend if needed
-    };
+  const addNewRow = () => {
+    setFormRows([...formRows, {
+      tempId: crypto.randomUUID(),
+      join_date: new Date().toISOString().split('T')[0],
+      employee_name: "",
+      employee_number: "",
+      mobile_number: "",
+      id_proof_no: "",
+      designation: "",
+      salary_type: "Per Duty",
+      salary: 0,
+      address: "",
+      description: "",
+      has_pf: false,
+      has_esi: false,
+      has_income_tax: false,
+      image_url: "",
+    }]);
+  };
+
+  const removeRow = (tempId: string) => {
+    if (formRows.length > 1) {
+      setFormRows(formRows.filter(row => row.tempId !== tempId));
+    }
+  };
+
+  const updateRow = (tempId: string, field: keyof EmployeeRow, value: any) => {
+    setFormRows(formRows.map(row =>
+      row.tempId === tempId ? { ...row, [field]: value } : row
+    ));
+  };
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
 
     try {
       if (editingId) {
+        // Update mode - use first row only
+        const row = formRows[0];
+        const submitData = {
+          ...row,
+          phone_no: row.mobile_number,
+        };
+
         const response = await fetch(`/api/employees/${editingId}`, {
           method: 'PUT',
           headers: { 'Content-Type': 'application/json' },
@@ -111,50 +189,110 @@ const Employees = () => {
         if (result.ok) {
           toast({ title: "Success", description: "Employee updated successfully" });
           setEditingId(null);
-          form.reset();
+          setUploadedImage(null);
+          setFormRows([{
+            tempId: crypto.randomUUID(),
+            join_date: new Date().toISOString().split('T')[0],
+            employee_name: "",
+            employee_number: "",
+            mobile_number: "",
+            id_proof_no: "",
+            designation: "",
+            salary_type: "Per Duty",
+            salary: 0,
+            address: "",
+            description: "",
+            has_pf: false,
+            has_esi: false,
+            has_income_tax: false,
+            image_url: "",
+          }]);
           fetchEmployees();
         } else {
           toast({ title: "Error", description: result.error || "Failed to update employee", variant: "destructive" });
         }
       } else {
-        const response = await fetch('/api/employees', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          credentials: 'include',
-          body: JSON.stringify(submitData)
-        });
-        const result = await response.json();
+        // Create mode - submit all rows
+        for (const row of formRows) {
+          const submitData = {
+            ...row,
+            phone_no: row.mobile_number,
+          };
 
-        if (result.ok) {
-          toast({ title: "Success", description: "Employee added successfully" });
-          form.reset();
-          fetchEmployees();
-        } else {
-          toast({ title: "Error", description: result.error || "Failed to add employee", variant: "destructive" });
+          const response = await fetch('/api/employees', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            credentials: 'include',
+            body: JSON.stringify(submitData)
+          });
+          const result = await response.json();
+
+          if (!result.ok) {
+            toast({ title: "Error", description: result.error || `Failed to add employee: ${row.employee_name}`, variant: "destructive" });
+            return;
+          }
         }
+
+        toast({ title: "Success", description: `${formRows.length} employee(s) added successfully` });
+        setUploadedImage(null);
+        setFormRows([{
+          tempId: crypto.randomUUID(),
+          join_date: new Date().toISOString().split('T')[0],
+          employee_name: "",
+          employee_number: "",
+          mobile_number: "",
+          id_proof_no: "",
+          designation: "",
+          salary_type: "Per Duty",
+          salary: 0,
+          address: "",
+          description: "",
+          has_pf: false,
+          has_esi: false,
+          has_income_tax: false,
+          image_url: "",
+        }]);
+        fetchEmployees();
       }
     } catch (error) {
       toast({ title: "Error", description: "Failed to save employee", variant: "destructive" });
     }
   };
 
+  const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        const base64String = reader.result as string;
+        setUploadedImage(base64String);
+        // Apply to all rows or current row? Adopt upstream approach: apply to currently being added rows
+        setFormRows(formRows.map(row => ({ ...row, image_url: base64String })));
+      };
+      reader.readAsDataURL(file);
+    }
+  };
+
   const handleEdit = (employee: any) => {
     setEditingId(employee.id);
-    form.reset({
+    setFormRows([{
+      tempId: crypto.randomUUID(),
       join_date: employee.join_date ? new Date(employee.join_date).toISOString().split('T')[0] : "",
-      employee_name: employee.employee_name,
+      employee_name: employee.employee_name || employee.employeeName || "",
       employee_number: employee.employee_number || "",
-      mobile_number: employee.mobile_number || "",
+      mobile_number: employee.mobile_number || employee.mobileNumber || "",
       id_proof_no: employee.id_proof_no || "",
       designation: employee.designation || "",
-      salary_type: employee.salary_type || "Monthly",
+      salary_type: employee.salary_type || "Per Duty",
       salary: parseFloat(employee.salary) || 0,
       address: employee.address || "",
       description: employee.description || "",
       has_pf: employee.has_pf || false,
       has_esi: employee.has_esi || false,
       has_income_tax: employee.has_income_tax || false,
-    });
+      image_url: employee.image_url || "",
+    }]);
+    setUploadedImage(employee.image_url || null);
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
@@ -178,200 +316,243 @@ const Employees = () => {
     setDeleteConfirm(null);
   };
 
-  const filteredEmployees = employees.filter((employee) =>
-    employee.employee_name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    employee.designation?.toLowerCase().includes(searchTerm.toLowerCase())
-  );
+  const toggleStatus = async (employeeId: string, currentStatus: boolean) => {
+    try {
+      const response = await fetch(`/api/employees/${employeeId}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({ is_active: !currentStatus }),
+      });
+
+      const result = await response.json();
+
+      if (result.ok) {
+        toast({
+          title: "Success",
+          description: `Employee ${!currentStatus ? 'activated' : 'deactivated'} successfully`
+        });
+        fetchEmployees();
+      } else {
+        toast({
+          title: "Error",
+          description: result.error || "Failed to update status",
+          variant: "destructive"
+        });
+      }
+    } catch (error) {
+      toast({
+        title: "Error",
+        description: "Failed to update status",
+        variant: "destructive"
+      });
+    }
+  };
+
+  const filteredEmployees = employees.filter((employee) => {
+    const searchLower = searchTerm.toLowerCase();
+    return (
+      (employee.employee_name?.toLowerCase() || '').includes(searchLower) ||
+      (employee.designation?.toLowerCase() || '').includes(searchLower) ||
+      (employee.mobile_number?.toLowerCase() || '').includes(searchLower) ||
+      (employee.employee_number?.toLowerCase() || '').includes(searchLower)
+    );
+  });
 
   return (
-    <div className="space-y-6">
-      <Card className="border-t-4 border-t-blue-600 shadow-md">
-        <CardHeader className="bg-blue-600 text-white py-3">
+    <div className="space-y-4">
+      <Card className="border-t-4 border-t-blue-700 shadow-md">
+        <CardHeader className="bg-blue-600 text-white py-2">
           <CardTitle className="text-lg font-medium">Create Employee</CardTitle>
         </CardHeader>
-        <CardContent className="p-6 bg-blue-50">
-          <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
-            <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-              <div>
-                <Label htmlFor="join_date" className="text-blue-900 font-semibold">Join Date <span className="text-red-500">*</span></Label>
-                <Input
-                  id="join_date"
-                  type="date"
-                  {...form.register("join_date")}
-                  className="bg-white border-blue-200 focus:border-blue-500"
-                />
-                {form.formState.errors.join_date && (
-                  <p className="text-xs text-red-500 mt-1">{form.formState.errors.join_date.message}</p>
+        <CardContent className="p-4 bg-blue-50">
+          <form onSubmit={handleSubmit} className="space-y-3">
+            {formRows.map((row, index) => (
+              <div key={row.tempId} className="p-4 bg-white rounded-lg border-2 border-blue-200 space-y-3 relative">
+                {formRows.length > 1 && (
+                  <div className="absolute top-2 right-2 bg-blue-600 text-white text-xs px-2 py-1 rounded">
+                    Row {index + 1}
+                  </div>
                 )}
-              </div>
-              <div>
-                <Label htmlFor="employee_name" className="text-blue-900 font-semibold">Employee Name <span className="text-red-500">*</span></Label>
-                <Input
-                  id="employee_name"
-                  {...form.register("employee_name")}
-                  className="bg-white border-blue-200 focus:border-blue-500"
-                  placeholder="Employee Name"
-                />
-                {form.formState.errors.employee_name && (
-                  <p className="text-xs text-red-500 mt-1">{form.formState.errors.employee_name.message}</p>
-                )}
-              </div>
-              <div>
-                <Label htmlFor="employee_number" className="text-blue-900 font-semibold">Employee Number</Label>
-                <Input
-                  id="employee_number"
-                  {...form.register("employee_number")}
-                  className="bg-white border-blue-200 focus:border-blue-500"
-                  placeholder="Emp No"
-                />
-              </div>
-              <div>
-                <Label htmlFor="mobile_number" className="text-blue-900 font-semibold">Phone No.</Label>
-                <Input
-                  id="mobile_number"
-                  {...form.register("mobile_number")}
-                  className="bg-white border-blue-200 focus:border-blue-500"
-                  placeholder="Phone Number"
-                />
-              </div>
-            </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-              <div>
-                <Label htmlFor="id_proof_no" className="text-blue-900 font-semibold">ID Proof No.</Label>
-                <Input
-                  id="id_proof_no"
-                  {...form.register("id_proof_no")}
-                  className="bg-white border-blue-200 focus:border-blue-500"
-                  placeholder="Aadhaar/PAN"
-                />
-              </div>
-              <div>
-                <Label htmlFor="designation" className="text-blue-900 font-semibold">Designation <span className="text-red-500">*</span></Label>
-                <Input
-                  id="designation"
-                  {...form.register("designation")}
-                  className="bg-white border-blue-200 focus:border-blue-500"
-                  placeholder="Designation"
-                />
-                {form.formState.errors.designation && (
-                  <p className="text-xs text-red-500 mt-1">{form.formState.errors.designation.message}</p>
-                )}
-              </div>
-              <div>
-                <Label htmlFor="salary_type" className="text-blue-900 font-semibold">Salary Type <span className="text-red-500">*</span></Label>
-                <Select
-                  onValueChange={(value) => form.setValue("salary_type", value as any)}
-                  defaultValue={form.getValues("salary_type")}
-                  value={form.watch("salary_type")}
-                >
-                  <SelectTrigger className="bg-white border-blue-200 focus:border-blue-500">
-                    <SelectValue placeholder="Select type" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="Monthly">Monthly</SelectItem>
-                    <SelectItem value="Daily">Daily</SelectItem>
-                    <SelectItem value="Hourly">Hourly</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-              <div>
-                <Label htmlFor="salary" className="text-blue-900 font-semibold">Salary</Label>
-                <Input
-                  id="salary"
-                  type="number"
-                  {...form.register("salary", { valueAsNumber: true })}
-                  className="bg-white border-blue-200 focus:border-blue-500"
-                  placeholder="Salary"
-                />
-              </div>
-            </div>
-
-            <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-              <div>
-                <Label className="text-blue-900 font-semibold">Upload Image</Label>
-                <Input
-                  type="file"
-                  className="bg-white border-blue-200 focus:border-blue-500"
-                />
-              </div>
-              <div className="md:col-span-2">
-                <Label htmlFor="address" className="text-blue-900 font-semibold">Address</Label>
-                <Textarea
-                  id="address"
-                  {...form.register("address")}
-                  className="bg-white border-blue-200 focus:border-blue-500 h-[38px] min-h-[38px]"
-                  placeholder="Address"
-                />
-              </div>
-              <div>
-                <Label htmlFor="description" className="text-blue-900 font-semibold">Description</Label>
-                <Textarea
-                  id="description"
-                  {...form.register("description")}
-                  className="bg-white border-blue-200 focus:border-blue-500 h-[38px] min-h-[38px]"
-                  placeholder="Description"
-                />
-              </div>
-            </div>
-
-            <div className="grid grid-cols-1 md:grid-cols-4 gap-4 items-center">
-              <div className="flex items-center gap-6 col-span-3">
-                <div className="flex items-center space-x-2">
-                  <Checkbox
-                    id="has_pf"
-                    checked={form.watch("has_pf")}
-                    onCheckedChange={(checked) => form.setValue("has_pf", checked as boolean)}
-                  />
-                  <Label htmlFor="has_pf" className="text-blue-900 font-semibold">Provident Fund</Label>
+                <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
+                  <div>
+                    <Label htmlFor={`join_date_${row.tempId}`} className="text-xs text-blue-900 font-semibold">Join Date <span className="text-red-500">*</span></Label>
+                    <Input
+                      id={`join_date_${row.tempId}`}
+                      type="date"
+                      value={row.join_date}
+                      onChange={(e) => updateRow(row.tempId, 'join_date', e.target.value)}
+                      className="bg-white border-blue-200 focus:border-blue-500 mt-0.5"
+                    />
+                  </div>
+                  <div>
+                    <Label htmlFor={`employee_name_${row.tempId}`} className="text-xs text-blue-900 font-semibold">Employee Name <span className="text-red-500">*</span></Label>
+                    <Input
+                      id={`employee_name_${row.tempId}`}
+                      value={row.employee_name}
+                      onChange={(e) => updateRow(row.tempId, 'employee_name', e.target.value)}
+                      className="bg-white border-blue-200 focus:border-blue-500 mt-0.5"
+                      placeholder="Employee Name"
+                    />
+                  </div>
+                  <div>
+                    <Label htmlFor={`employee_number_${row.tempId}`} className="text-xs text-blue-900 font-semibold">Employee Number</Label>
+                    <Input
+                      id={`employee_number_${row.tempId}`}
+                      value={row.employee_number}
+                      onChange={(e) => updateRow(row.tempId, 'employee_number', e.target.value)}
+                      className="bg-white border-blue-200 focus:border-blue-500 mt-0.5"
+                      placeholder="Emp No"
+                    />
+                  </div>
+                  <div>
+                    <Label htmlFor={`mobile_number_${row.tempId}`} className="text-xs text-blue-900 font-semibold">Phone No.</Label>
+                    <Input
+                      id={`mobile_number_${row.tempId}`}
+                      value={row.mobile_number}
+                      onChange={(e) => updateRow(row.tempId, 'mobile_number', e.target.value)}
+                      className="bg-white border-blue-200 focus:border-blue-500 mt-0.5"
+                      placeholder="Phone Number"
+                    />
+                  </div>
                 </div>
-                <div className="flex items-center space-x-2">
-                  <Checkbox
-                    id="has_income_tax"
-                    checked={form.watch("has_income_tax")}
-                    onCheckedChange={(checked) => form.setValue("has_income_tax", checked as boolean)}
-                  />
-                  <Label htmlFor="has_income_tax" className="text-blue-900 font-semibold">Income Tax</Label>
-                </div>
-                <div className="flex items-center space-x-2">
-                  <Checkbox
-                    id="has_esi"
-                    checked={form.watch("has_esi")}
-                    onCheckedChange={(checked) => form.setValue("has_esi", checked as boolean)}
-                  />
-                  <Label htmlFor="has_esi" className="text-blue-900 font-semibold">Employees State Insurance</Label>
-                </div>
-              </div>
-              <div className="flex justify-end">
-                <Button
-                  type="button"
-                  size="icon"
-                  className="bg-blue-600 hover:bg-blue-700 text-white rounded-full h-8 w-8"
-                  onClick={() => {
-                    form.reset({
-                      join_date: new Date().toISOString().split('T')[0],
-                      employee_name: "",
-                      employee_number: "",
-                      mobile_number: "",
-                      id_proof_no: "",
-                      designation: "",
-                      salary_type: "Monthly",
-                      salary: 0,
-                      address: "",
-                      description: "",
-                      has_pf: false,
-                      has_esi: false,
-                      has_income_tax: false,
-                    });
-                    setEditingId(null);
-                  }}
-                >
-                  <Plus className="h-4 w-4" />
-                </Button>
-              </div>
-            </div>
 
-            <div className="flex justify-center mt-6">
+                <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
+                  <div>
+                    <Label htmlFor={`id_proof_no_${row.tempId}`} className="text-xs text-blue-900 font-semibold">ID Proof No.</Label>
+                    <Input
+                      id={`id_proof_no_${row.tempId}`}
+                      value={row.id_proof_no}
+                      onChange={(e) => updateRow(row.tempId, 'id_proof_no', e.target.value)}
+                      className="bg-white border-blue-200 focus:border-blue-500 mt-0.5"
+                      placeholder="Aadhaar/PAN"
+                    />
+                  </div>
+                  <div>
+                    <Label htmlFor={`designation_${row.tempId}`} className="text-xs text-blue-900 font-semibold">Designation <span className="text-red-500">*</span></Label>
+                    <Input
+                      id={`designation_${row.tempId}`}
+                      value={row.designation}
+                      onChange={(e) => updateRow(row.tempId, 'designation', e.target.value)}
+                      className="bg-white border-blue-200 focus:border-blue-500 mt-0.5"
+                      placeholder="Designation"
+                    />
+                  </div>
+                  <div>
+                    <Label htmlFor={`salary_type_${row.tempId}`} className="text-xs text-blue-900 font-semibold">Salary Type <span className="text-red-500">*</span></Label>
+                    <Select
+                      onValueChange={(value) => updateRow(row.tempId, 'salary_type', value)}
+                      value={row.salary_type}
+                    >
+                      <SelectTrigger className="bg-white border-blue-200 focus:border-blue-500 h-8 mt-0.5">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="Monthly">Monthly</SelectItem>
+                        <SelectItem value="Daily">Daily</SelectItem>
+                        <SelectItem value="Hourly">Hourly</SelectItem>
+                        <SelectItem value="Per Duty">Per Duty</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div>
+                    <Label htmlFor={`salary_${row.tempId}`} className="text-xs text-blue-900 font-semibold">Salary</Label>
+                    <Input
+                      id={`salary_${row.tempId}`}
+                      type="number"
+                      value={row.salary}
+                      onChange={(e) => updateRow(row.tempId, 'salary', e.target.value)}
+                      className="bg-white border-blue-200 focus:border-blue-500 mt-0.5"
+                      placeholder="Salary"
+                    />
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
+                  <div>
+                    <Label className="text-xs text-blue-900 font-semibold">Upload Image</Label>
+                    <Input
+                      type="file"
+                      onChange={handleImageUpload}
+                      className="bg-white border-blue-200 focus:border-blue-500 h-8 text-xs mt-0.5"
+                    />
+                  </div>
+                  <div className="md:col-span-2">
+                    <Label htmlFor={`address_${row.tempId}`} className="text-xs text-blue-900 font-semibold">Address</Label>
+                    <Textarea
+                      id={`address_${row.tempId}`}
+                      value={row.address}
+                      onChange={(e) => updateRow(row.tempId, 'address', e.target.value)}
+                      className="bg-white border-blue-200 focus:border-blue-500 h-8 min-h-[32px] mt-0.5"
+                      placeholder="Address"
+                    />
+                  </div>
+                  <div>
+                    <Label htmlFor={`description_${row.tempId}`} className="text-xs text-blue-900 font-semibold">Description</Label>
+                    <Textarea
+                      id={`description_${row.tempId}`}
+                      value={row.description}
+                      onChange={(e) => updateRow(row.tempId, 'description', e.target.value)}
+                      className="bg-white border-blue-200 focus:border-blue-500 h-8 min-h-[32px] mt-0.5"
+                      placeholder="Description"
+                    />
+                  </div>
+                </div>
+
+                <div className="flex flex-wrap gap-4 items-center">
+                  <div className="flex items-center space-x-2">
+                    <Checkbox
+                      id={`has_pf_${row.tempId}`}
+                      checked={row.has_pf}
+                      onCheckedChange={(checked) => updateRow(row.tempId, 'has_pf', checked as boolean)}
+                    />
+                    <Label htmlFor={`has_pf_${row.tempId}`} className="text-xs text-blue-900 font-semibold">Provident Fund</Label>
+                  </div>
+                  <div className="flex items-center space-x-2">
+                    <Checkbox
+                      id={`has_income_tax_${row.tempId}`}
+                      checked={row.has_income_tax}
+                      onCheckedChange={(checked) => updateRow(row.tempId, 'has_income_tax', checked as boolean)}
+                    />
+                    <Label htmlFor={`has_income_tax_${row.tempId}`} className="text-xs text-blue-900 font-semibold">Income Tax</Label>
+                  </div>
+                  <div className="flex items-center space-x-2">
+                    <Checkbox
+                      id={`has_esi_${row.tempId}`}
+                      checked={row.has_esi}
+                      onCheckedChange={(checked) => updateRow(row.tempId, 'has_esi', checked as boolean)}
+                    />
+                    <Label htmlFor={`has_esi_${row.tempId}`} className="text-xs text-blue-900 font-semibold">Employees State Insurance</Label>
+                  </div>
+
+                  <div className="flex-1 flex justify-end gap-2">
+                    {index === formRows.length - 1 ? (
+                      <Button
+                        type="button"
+                        size="icon"
+                        className="bg-blue-600 hover:bg-blue-700 text-white rounded-full h-8 w-8"
+                        onClick={addNewRow}
+                      >
+                        <Plus className="h-4 w-4" />
+                      </Button>
+                    ) : (
+                      <Button
+                        type="button"
+                        size="icon"
+                        variant="destructive"
+                        className="rounded-full h-8 w-8"
+                        onClick={() => removeRow(row.tempId)}
+                      >
+                        <X className="h-4 w-4" />
+                      </Button>
+                    )}
+                  </div>
+                </div>
+              </div>
+            ))}
+
+            <div className="flex justify-center mt-4">
               <Button type="submit" className="bg-[#84cc16] hover:bg-[#65a30d] text-white px-8 font-bold">
                 {editingId ? "UPDATE" : "SAVE"}
               </Button>
@@ -390,10 +571,6 @@ const Employees = () => {
               </select>
             </div>
             <div className="flex items-center gap-4">
-              <div className="flex gap-1">
-                <Button variant="outline" size="sm" className="text-green-600 border-green-200 bg-green-50">CSV</Button>
-                <Button variant="outline" size="sm" className="text-red-600 border-red-200 bg-red-50">PDF</Button>
-              </div>
               <div className="flex items-center gap-2">
                 <span className="text-sm text-gray-500">Filter:</span>
                 <Input
@@ -411,43 +588,56 @@ const Employees = () => {
               <TableHeader className="bg-gray-50">
                 <TableRow>
                   <TableHead className="font-bold text-gray-700">S.No</TableHead>
-                  <TableHead className="font-bold text-gray-700">Emp Name</TableHead>
-                  <TableHead className="font-bold text-gray-700">Emp Num</TableHead>
-                  <TableHead className="font-bold text-gray-700">Mobile Num</TableHead>
-                  <TableHead className="font-bold text-gray-700">Salary</TableHead>
-                  <TableHead className="font-bold text-gray-700">Aadhaar Num</TableHead>
-                  <TableHead className="font-bold text-gray-700">Designation</TableHead>
-                  <TableHead className="font-bold text-gray-700">Address</TableHead>
-                  <TableHead className="font-bold text-gray-700">Description</TableHead>
-                  <TableHead className="font-bold text-gray-700">Image</TableHead>
-                  <TableHead className="font-bold text-gray-700 text-center">Action</TableHead>
-                  <TableHead className="font-bold text-gray-700">Benefits</TableHead>
                   <TableHead className="font-bold text-gray-700 text-center">Status</TableHead>
-                  <TableHead className="font-bold text-gray-700">User Log Details</TableHead>
+                  <TableHead className="font-bold text-gray-700 text-center">Action</TableHead>
+                  <TableHead className="font-bold text-gray-700">Employee Name</TableHead>
+                  <TableHead className="font-bold text-gray-700">Employee No</TableHead>
+                  <TableHead className="font-bold text-gray-700">Mobile No</TableHead>
+                  <TableHead className="font-bold text-gray-700">Designation</TableHead>
+                  <TableHead className="font-bold text-gray-700">Date of Join</TableHead>
+                  <TableHead className="font-bold text-gray-700">Salary</TableHead>
+                  <TableHead className="font-bold text-gray-700">Address</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {filteredEmployees.length === 0 ? (
+                {isLoading ? (
                   <TableRow>
-                    <TableCell colSpan={14} className="text-center py-8 text-gray-500">
+                    <TableCell colSpan={10} className="text-center py-8">Loading employees...</TableCell>
+                  </TableRow>
+                ) : filteredEmployees.length === 0 ? (
+                  <TableRow>
+                    <TableCell colSpan={10} className="text-center py-8 text-gray-500">
                       No employees found. Add your first employee above.
                     </TableCell>
                   </TableRow>
                 ) : (
-                  filteredEmployees.map((item, index) => (
-                    <TableRow key={item.id} className="hover:bg-gray-50">
+                  filteredEmployees.map((employee, index) => (
+                    <TableRow key={employee.id} className="hover:bg-gray-50">
                       <TableCell>{index + 1}</TableCell>
-                      <TableCell className="font-medium">{item.employee_name}</TableCell>
-                      <TableCell>{item.employee_number || "-"}</TableCell>
-                      <TableCell>{item.mobile_number || "-"}</TableCell>
-                      <TableCell>₹{item.salary || 0}</TableCell>
-                      <TableCell>{item.id_proof_no || "-"}</TableCell>
-                      <TableCell>{item.designation}</TableCell>
-                      <TableCell>{item.address || "-"}</TableCell>
-                      <TableCell>{item.description || "-"}</TableCell>
-                      <TableCell>
-                        <div className="w-8 h-8 bg-gray-200 rounded-full flex items-center justify-center">
-                          <Eye className="h-4 w-4 text-gray-500" />
+                      <TableCell className="text-center">
+                        <div className="flex flex-col items-center gap-2">
+                          <button
+                            onClick={() => toggleStatus(employee.id, employee.is_active !== false)}
+                            className={`relative inline-flex h-8 w-16 items-center rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-offset-2 ${employee.is_active !== false
+                                ? 'bg-blue-600 focus:ring-blue-500'
+                                : 'bg-gray-300 focus:ring-gray-400'
+                              }`}
+                            role="switch"
+                            aria-checked={employee.is_active !== false}
+                          >
+                            <span
+                              className={`inline-block h-6 w-6 transform rounded-full bg-white shadow-lg transition-transform ${employee.is_active !== false ? 'translate-x-9' : 'translate-x-1'
+                                }`}
+                            />
+                          </button>
+                          <span
+                            className={`text-xs font-semibold px-2 py-1 rounded ${employee.is_active !== false
+                                ? 'bg-green-100 text-green-800'
+                                : 'bg-gray-100 text-gray-600'
+                              }`}
+                          >
+                            {employee.is_active !== false ? 'ACTIVE' : 'INACTIVE'}
+                          </span>
                         </div>
                       </TableCell>
                       <TableCell className="text-center">
@@ -455,37 +645,38 @@ const Employees = () => {
                           <Button
                             variant="ghost"
                             size="icon"
-                            className="h-8 w-8 text-green-600 hover:text-green-700 hover:bg-green-50"
-                            onClick={() => handleEdit(item)}
+                            className="h-8 w-8 text-blue-600 hover:text-blue-700 hover:bg-blue-50"
+                            onClick={() => handleEdit(employee)}
                           >
                             <Pencil className="h-4 w-4" />
                           </Button>
                           <Button
                             variant="ghost"
                             size="icon"
-                            className="h-8 w-8 text-orange-400 hover:text-orange-500 hover:bg-orange-50"
-                            onClick={() => setDeleteConfirm(item.id)}
+                            className="h-8 w-8 text-red-600 hover:text-red-700 hover:bg-red-50"
+                            onClick={() => setDeleteConfirm(employee.id)}
                           >
                             <Trash2 className="h-4 w-4" />
                           </Button>
+                          {employee.image_url && (
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              className="h-8 w-8 text-green-600 hover:text-green-700 hover:bg-green-50"
+                              onClick={() => setViewingImage({ url: employee.image_url, name: employee.employee_name })}
+                            >
+                              <Eye className="h-4 w-4" />
+                            </Button>
+                          )}
                         </div>
                       </TableCell>
-                      <TableCell>
-                        <div className="flex flex-col gap-1 text-xs">
-                          {item.has_pf && <span className="bg-blue-100 text-blue-800 px-1 rounded w-fit">Provident Fund</span>}
-                          {item.has_esi && <span className="bg-purple-100 text-purple-800 px-1 rounded w-fit">Employees State Insurance</span>}
-                          {item.has_income_tax && <span className="bg-yellow-100 text-yellow-800 px-1 rounded w-fit">Income Tax</span>}
-                          {!item.has_pf && !item.has_esi && !item.has_income_tax && "-"}
-                        </div>
-                      </TableCell>
-                      <TableCell className="text-center">
-                        <span className="bg-[#10b981] text-white text-xs px-2 py-1 rounded font-bold">
-                          ACTIVATED
-                        </span>
-                      </TableCell>
-                      <TableCell className="text-xs text-gray-500">
-                        Created: Super Admin {item.created_at ? new Date(item.created_at).toLocaleString() : 'N/A'}
-                      </TableCell>
+                      <TableCell className="font-medium">{employee.employee_name}</TableCell>
+                      <TableCell>{employee.employee_number || "-"}</TableCell>
+                      <TableCell>{employee.mobile_number || "-"}</TableCell>
+                      <TableCell>{employee.designation}</TableCell>
+                      <TableCell>{new Date(employee.join_date).toLocaleDateString()}</TableCell>
+                      <TableCell>{employee.salary || "0.00"}</TableCell>
+                      <TableCell className="max-w-[200px] truncate">{employee.address || "-"}</TableCell>
                     </TableRow>
                   ))
                 )}
@@ -509,7 +700,7 @@ const Employees = () => {
           <AlertDialogHeader>
             <AlertDialogTitle>Are you sure?</AlertDialogTitle>
             <AlertDialogDescription>
-              This action will delete this employee. This action cannot be undone.
+              This action will delete this employee record. This action cannot be undone.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
@@ -520,6 +711,19 @@ const Employees = () => {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      <Dialog open={viewingImage !== null} onOpenChange={() => setViewingImage(null)}>
+        <DialogContent className="max-w-3xl">
+          <DialogHeader>
+            <DialogTitle>{viewingImage?.name} - Photo</DialogTitle>
+          </DialogHeader>
+          <div className="flex justify-center p-4">
+            {viewingImage?.url && (
+              <img src={viewingImage.url} alt={viewingImage.name} className="max-w-full max-h-[70vh] object-contain rounded-lg shadow-lg" />
+            )}
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 };

@@ -44,6 +44,13 @@ tmp/
 *.err
 *.txt
 !public/robots.txt
+db_dump.json
+server_requests.log
+build_log*.txt
+server_startup*.log
+main_check.txt
+curl_output.txt
+.local.env
 
 # Test outputs
 test-reports/

@@ -31,7 +31,7 @@ async function seed() {
         const hashedPassword = await bcrypt.hash(password, 10);
 
         // 1. Create/Find Tenant
-        let tenant = await tenantsColl.findOne({ superAdminEmail: email.toLowerCase() });
+        const tenant = await tenantsColl.findOne({ superAdminEmail: email.toLowerCase() });
         let tenantIdStr = '';
 
         if (!tenant) {
@@ -138,3 +138,4 @@ async function seed() {
 }
 
 seed();
+

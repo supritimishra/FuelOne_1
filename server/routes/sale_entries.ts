@@ -1,14 +1,14 @@
 
 import { Router, Request, Response } from "express";
-import { db } from "../db";
+import { db } from "../db.js";
 import {
     saleEntries, nozzles, fuelProducts, dailySaleRates, employees, dutyShifts, users, tanks,
     insertSaleEntrySchema
-} from "../../shared/schema";
+} from "../../shared/schema.js";
 import { eq, desc, and, sql } from "drizzle-orm";
 import {
     Nozzle, DailySaleRate, FuelProduct, Tank, SaleEntry, DutyShift, Employee, User
-} from "../models";
+} from "../models.js";
 
 export const saleEntriesRouter = Router();
 
@@ -37,7 +37,7 @@ saleEntriesRouter.get("/nozzles-with-last-readings", async (req: Request, res: R
                 rateDate: { $gte: new Date(dateStr), $lte: new Date(dateStr + "T23:59:59") }
             });
             const ratesMap = new Map();
-            rates.forEach(r => ratesMap.set(r.fuelProductId, r.closeRate));
+            rates.forEach((r: any) => ratesMap.set(r.fuelProductId, r.closeRate));
 
             const rows = await Promise.all(activeNozzles.map(async (n) => {
                 // Get last closing reading

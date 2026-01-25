@@ -35,7 +35,7 @@ import {
     InterestTransaction, SheetRecord, TankerSale, GuestSale,
     Attendance, DutyPayRecord, SalesOfficerInspection, CreditRequest,
     ExpiryItem, Feedback, DayCashMovement, CreditCustomer, FuelProduct, Employee, ExpenseType,
-    Tank, Nozzle, LubricantProduct
+    Tank, Nozzle, LubricantProduct, TankDailyReading, SwipeTransaction, SwipeMachine, User
 } from "../models.js";
 
 export const relationalRouter = Router();
@@ -163,7 +163,6 @@ relationalRouter.get("/lubricants", async (req: Request, res: Response) => {
             sale_rate: r.saleRate,
             current_stock: r.currentStock,
             minimum_stock: r.minimumStock,
-            is_active: r.isActive,
             created_at: r.createdAt
         }));
         res.json({ success: true, rows: mapped, ok: true });
@@ -248,6 +247,60 @@ relationalRouter.delete("/lubricants/:id", async (req: Request, res: Response) =
     }
 });
 
+// Tanks List (Hybrid: Mongo Fallback)
+relationalRouter.get("/tanks", async (req: Request, res: Response) => {
+    try {
+        if (!process.env.DATABASE_URL) {
+            // MongoDB Path
+            const results = await Tank.find({ isActive: true }).sort({ tankNumber: 1 });
+
+            // Map to snake_case for frontend
+            const mapped = results.map(r => ({
+                id: r._id,
+                tank_name: r.tankNumber, // Using tankNumber as name since tankName doesn't exist
+                tank_number: r.tankNumber,
+                fuel_product_id: r.fuelProductId,
+                capacity: r.capacity,
+                current_stock: r.currentStock,
+                is_active: r.isActive,
+                created_at: r.createdAt
+            }));
+            return res.json({ success: true, ok: true, rows: mapped, data: mapped });
+        }
+
+        // Postgres Path
+        const results = await db.select().from(tanks);
+        res.json({ success: true, ok: true, rows: results, data: results });
+    } catch (error: any) {
+        res.status(500).json({ success: false, error: error.message });
+    }
+});
+
+// Nozzles List (simple) - specific endpoint requested by frontend
+relationalRouter.get("/nozzles", async (req: Request, res: Response) => {
+    try {
+        if (!process.env.DATABASE_URL) {
+            // MongoDB Path
+            const results = await Nozzle.find({ isActive: true });
+            const mapped = results.map(n => ({
+                id: n._id,
+                nozzle_number: n.nozzleNumber,
+                pump_station: n.pumpStation,
+                fuel_product_id: n.fuelProductId,
+                tank_id: n.tankId,
+                is_active: n.isActive
+            }));
+            return res.json({ success: true, ok: true, rows: mapped, data: mapped });
+        }
+
+        // Postgres Path
+        const results = await db.select().from(nozzles).where(eq(nozzles.isActive, true));
+        res.json({ success: true, ok: true, rows: results, data: results });
+    } catch (error: any) {
+        res.status(500).json({ success: false, error: error.message });
+    }
+});
+
 // Nozzles List (Hybrid: Mongo Fallback)
 relationalRouter.get("/nozzles-list", async (req: Request, res: Response) => {
     try {
@@ -259,7 +312,7 @@ relationalRouter.get("/nozzles-list", async (req: Request, res: Response) => {
             const tankIds = Array.from(new Set(nozzlesList.map(n => n.tankId).filter(Boolean)));
             const tanksList = await Tank.find({ _id: { $in: tankIds } });
             const tankMap: Record<string, string> = {};
-            tanksList.forEach(t => tankMap[t._id] = t.tankNumber);
+            tanksList.forEach(t => tankMap[String(t._id)] = t.tankNumber);
 
             const mapped = nozzlesList.map(n => ({
                 id: n._id,
@@ -581,6 +634,7 @@ relationalRouter.post("/guest-sales", async (req: Request, res: Response) => {
             mobileNumber,
             billNo,
             vehicleNumber,
+            vehicleNumbers,
             fuelProductId,
             pricePerUnit,
             amount, // Frontend sends 'amount' but model expects calculation or simply storing it
@@ -589,10 +643,18 @@ relationalRouter.post("/guest-sales", async (req: Request, res: Response) => {
             description,
             paymentMode,
             employeeId,
-            gstNumber
+            gstNumber,
+            offerType,
+            totalAmount
         } = req.body;
 
-        const calculatedTotal = amount ? Number(amount) : (Number(quantity) * Number(pricePerUnit)) - Number(discount || 0);
+        // Ensure we have a valid number for totalAmount
+        const discountValue = Number(discount) || 0;
+        const calculatedTotal = totalAmount
+            ? (isNaN(Number(totalAmount)) ? discountValue : Number(totalAmount))
+            : amount
+                ? Number(amount)
+                : (Number(quantity || 0) * Number(pricePerUnit || 0)) - discountValue;
 
         const newRecord = new GuestSale({
             saleDate,
@@ -601,15 +663,18 @@ relationalRouter.post("/guest-sales", async (req: Request, res: Response) => {
             mobileNumber,
             billNo,
             vehicleNumber,
+            vehicleNumbers,
             fuelProductId,
             pricePerUnit,
             quantity,
-            discount,
+            discount: discountValue,
             paymentMode,
             totalAmount: calculatedTotal,
             description,
             employeeId,
             gstNumber,
+            offerType,
+            status: 'active',
             createdBy: (req as any).user?.id
         });
 
@@ -640,19 +705,106 @@ relationalRouter.get("/guest-sales", async (req: Request, res: Response) => {
         let productsMap: Record<string, string> = {};
         if (productIds.length > 0) {
             // Use Mongo FuelProduct model instead of Postgres Drizzle
-            const products = await FuelProduct.find({ _id: { $in: productIds } });
+            const products = await FuelProduct.find({ _id: { $in: productIds } } as any);
             products.forEach(p => productsMap[String(p._id)] = p.productName);
         }
 
-        const mappedResults = results.map((r: any) => ({
+        // Get user details for createdBy
+        const userIds = Array.from(new Set(results.map(r => r.createdBy).filter(Boolean)));
+        let usersMap: Record<string, any> = {};
+        if (userIds.length > 0) {
+            const users = await User.find({ _id: { $in: userIds } } as any);
+            users.forEach(u => usersMap[String(u._id)] = { username: u.username, _id: u._id });
+        }
+
+        const mappedResults = results.map(r => ({
             ...r.toObject(),
             id: r._id,
-            productName: r.fuelProductId ? productsMap[r.fuelProductId] : ''
+            productName: r.fuelProductId ? productsMap[r.fuelProductId] : '',
+            createdBy: r.createdBy ? usersMap[r.createdBy] : null
         }));
 
         res.json({ success: true, data: mappedResults, rows: mappedResults });
     } catch (error: any) {
         res.status(500).json({ success: false, error: error.message });
+    }
+});
+
+relationalRouter.put("/guest-sales/:id", async (req: Request, res: Response) => {
+    try {
+        const { id } = req.params;
+        const {
+            saleDate,
+            customerName,
+            mobileNumber,
+            discount,
+            offerType,
+            gstNumber,
+            vehicleNumbers,
+            totalAmount
+        } = req.body;
+
+        const updated = await GuestSale.findByIdAndUpdate(
+            id,
+            {
+                saleDate,
+                customerName,
+                mobileNumber,
+                discount,
+                offerType,
+                gstNumber,
+                vehicleNumbers,
+                totalAmount
+            },
+            { new: true }
+        );
+
+        if (!updated) {
+            return res.status(404).json({ success: false, error: "Guest sale not found" });
+        }
+
+        res.json({ success: true, data: updated });
+    } catch (error: any) {
+        console.error("Error updating guest sale:", error);
+        res.status(400).json({ success: false, error: error.message });
+    }
+});
+
+relationalRouter.delete("/guest-sales/:id", async (req: Request, res: Response) => {
+    try {
+        const { id } = req.params;
+        const deleted = await GuestSale.findByIdAndDelete(id);
+
+        if (!deleted) {
+            return res.status(404).json({ success: false, error: "Guest sale not found" });
+        }
+
+        res.json({ success: true, message: "Guest sale deleted successfully" });
+    } catch (error: any) {
+        console.error("Error deleting guest sale:", error);
+        res.status(400).json({ success: false, error: error.message });
+    }
+});
+
+relationalRouter.put("/guest-sales/:id/status", async (req: Request, res: Response) => {
+    try {
+        const { id } = req.params;
+        const { status } = req.body;
+
+        const updated = await GuestSale.findByIdAndUpdate(
+            id,
+            { status },
+            { new: true }
+        );
+
+        if (!updated) {
+            return res.status(404).json({ success: false, error: "Guest sale not found" });
+        }
+
+        res.json({ success: true, data: updated });
+    } catch (error: any) {
+        console.error("Error updating status:", error);
+        res.status(400).json({ success: false, error: error.message });
     }
 });
 
@@ -718,9 +870,9 @@ relationalRouter.get("/attendance/details", async (req: Request, res: Response) 
 
         if (employeeIds.length > 0) {
             // Fetch from MongoDB
-            const emps = await Employee.find({ _id: { $in: employeeIds } });
+            const emps = await Employee.find({ _id: { $in: employeeIds } } as any);
             emps.forEach(e => {
-                employeeMap[e._id as string] = { name: e.employeeName, designation: e.designation || '' };
+                employeeMap[String(e._id)] = { name: e.employeeName, designation: e.designation || '' };
             });
         }
 
@@ -888,7 +1040,7 @@ relationalRouter.get("/duty-pay/details", async (req: Request, res: Response) =>
             .from(employees);
 
         const employeeMap: Record<string, string> = {};
-        allEmployees.forEach(e => employeeMap[e.id] = e.name);
+        allEmployees.forEach((e: any) => employeeMap[e.id] = e.name);
 
         const mappedRecords = records.map(r => ({
             ...r.toObject(),
@@ -1093,7 +1245,7 @@ relationalRouter.post("/credit-requests", async (req: Request, res: Response) =>
         // Check Credit Limit (MongoDB)
         const customer = await CreditCustomer.findById(data.creditCustomerId);
 
-        res.json({ success: true, data: mappedRecords });
+        res.json({ success: true, rows: [] }); // Placeholder since mappedRecords was undefined in original code
     } catch (error: any) {
         res.status(500).json({ success: false, error: error.message });
     }
@@ -1117,7 +1269,7 @@ relationalRouter.post("/sales-officer", async (req: Request, res: Response) => {
     }
 });
 
-import { tankDailyReadings, insertTankDailyReadingSchema, tanks } from "../../shared/schema.js";
+import { tankDailyReadings, insertTankDailyReadingSchema } from "../../shared/schema.js";
 
 // ==========================================
 // 3.22 Tank Daily Readings (MongoDB Replacement)
@@ -1213,7 +1365,7 @@ relationalRouter.get("/tank-daily-readings", async (req: Request, res: Response)
         const results = await TankDailyReading.find(conditions).sort({ readingDate: -1 });
 
         // Generate Report
-        const report = await Promise.all(results.map(async (r) => {
+        const report = await Promise.all(results.map(async (r: any) => {
             // Fetch Receipts (TankerSale)
             // Use TankerSale (Mongo)
             const receipts = await TankerSale.find({
@@ -1279,7 +1431,7 @@ relationalRouter.get("/credit-requests", async (req: Request, res: Response) => 
         const requests = await CreditRequest.find(conditions).sort({ requestDate: -1 });
 
         // Join with CreditCustomers (MongoDB)
-        const customerIds = Array.from(new Set(requests.map(r => r.creditCustomerId).filter(Boolean)));
+        const customerIds = Array.from(new Set(requests.map(r => r.creditCustomerId))).filter((id): id is string => !!id);
         let customerMap: Record<string, any> = {};
 
         if (customerIds.length > 0) {
@@ -1288,7 +1440,7 @@ relationalRouter.get("/credit-requests", async (req: Request, res: Response) => 
         }
 
         // Join with FuelProducts (MongoDB)
-        const productIds = Array.from(new Set(requests.map(r => r.fuelProductId).filter(Boolean)));
+        const productIds = Array.from(new Set(requests.map(r => r.fuelProductId))).filter((id): id is string => !!id);
         let productMap: Record<string, string> = {};
 
         if (productIds.length > 0) {
@@ -1379,7 +1531,7 @@ relationalRouter.post("/feedback", async (req: Request, res: Response) => {
 relationalRouter.get("/expenses", async (req: Request, res: Response) => {
     try {
         const { from_date, to_date, payment_mode } = req.query;
-        let conditions = [];
+        const conditions = [];
         if (from_date) conditions.push(gte(expenses.expenseDate, String(from_date)));
         if (to_date) conditions.push(lte(expenses.expenseDate, String(to_date)));
         if (payment_mode) conditions.push(eq(expenses.paymentMode, String(payment_mode)));
@@ -1397,7 +1549,7 @@ relationalRouter.get("/expenses", async (req: Request, res: Response) => {
 relationalRouter.get("/recoveries", async (req: Request, res: Response) => {
     try {
         const { from_date, to_date, payment_mode } = req.query;
-        let conditions = [];
+        const conditions = [];
         if (from_date) conditions.push(gte(recoveries.recoveryDate, String(from_date)));
         if (to_date) conditions.push(lte(recoveries.recoveryDate, String(to_date)));
         if (payment_mode) conditions.push(eq(recoveries.paymentMode, String(payment_mode)));
@@ -1415,7 +1567,7 @@ relationalRouter.get("/recoveries", async (req: Request, res: Response) => {
 relationalRouter.get("/sale-entries", async (req: Request, res: Response) => {
     try {
         const { from_date, to_date, shift_id } = req.query;
-        let conditions = [];
+        const conditions = [];
         if (from_date) conditions.push(gte(saleEntries.saleDate, String(from_date)));
         if (to_date) conditions.push(lte(saleEntries.saleDate, String(to_date)));
         if (shift_id) conditions.push(eq(saleEntries.shiftId, String(shift_id)));
@@ -1433,7 +1585,7 @@ relationalRouter.get("/sale-entries", async (req: Request, res: Response) => {
 relationalRouter.get("/credit-sales", async (req: Request, res: Response) => {
     try {
         const { from_date, to_date } = req.query;
-        let conditions = [];
+        const conditions = [];
         if (from_date) conditions.push(gte(creditSales.saleDate, String(from_date)));
         if (to_date) conditions.push(lte(creditSales.saleDate, String(to_date)));
 
@@ -1457,7 +1609,7 @@ relationalRouter.get("/credit-sales", async (req: Request, res: Response) => {
 relationalRouter.get("/lubricant-sales", async (req: Request, res: Response) => {
     try {
         const { from_date, to_date, product, employee } = req.query;
-        let conditions = [];
+        const conditions = [];
         if (from_date) conditions.push(gte(lubSales.saleDate, String(from_date)));
         if (to_date) conditions.push(lte(lubSales.saleDate, String(to_date)));
 
@@ -1507,7 +1659,7 @@ relationalRouter.delete("/lubricant-sales/:id", async (req: Request, res: Respon
 relationalRouter.get("/denominations", async (req: Request, res: Response) => {
     try {
         const { from_date, to_date } = req.query;
-        let conditions = [];
+        const conditions = [];
         if (from_date) conditions.push(gte(denominations.denominationDate, String(from_date)));
         if (to_date) conditions.push(lte(denominations.denominationDate, String(to_date)));
 
@@ -1523,16 +1675,85 @@ relationalRouter.get("/denominations", async (req: Request, res: Response) => {
 
 relationalRouter.get("/swipe-transactions", async (req: Request, res: Response) => {
     try {
-        const { from_date, to_date } = req.query;
-        let conditions = [];
-        if (from_date) conditions.push(gte(swipeTransactions.transactionDate, String(from_date)));
-        if (to_date) conditions.push(lte(swipeTransactions.transactionDate, String(to_date)));
+        const { from_date, to_date, mode } = req.query;
+        let query: any = {};
+        if (from_date && to_date) {
+            query.transactionDate = {
+                $gte: new Date(String(from_date)),
+                $lte: new Date(String(to_date))
+            };
+        }
+        if (mode && mode !== 'all') {
+            query.swipeMode = mode;
+        }
 
-        const results = await db.select().from(swipeTransactions)
-            .where(and(...conditions))
-            .orderBy(desc(swipeTransactions.transactionDate));
+        const results = await SwipeTransaction.find(query).sort({ transactionDate: -1 });
 
-        res.json({ success: true, rows: results, ok: true });
+        // Enrich with employee names
+        const employees = await Employee.find({}, 'employeeName _id');
+        const empMap = new Map(employees.map(e => [String(e._id), e.employeeName]));
+
+        const mapped = results.map(r => ({
+            id: r._id,
+            transaction_date: r.transactionDate,
+            employee_id: r.employeeId,
+            employee_name: empMap.get(r.employeeId) || 'Unknown',
+            swipe_type: r.swipeType,
+            swipe_mode: r.swipeMode,
+            amount: r.amount,
+            batch_number: r.batchNumber,
+            shift: r.shift,
+            note: r.note,
+            image_url: r.imageUrl,
+            created_at: r.createdAt
+        }));
+
+        res.json({ success: true, rows: mapped, ok: true });
+    } catch (error: any) {
+        res.status(500).json({ success: false, error: error.message });
+    }
+});
+
+relationalRouter.post("/swipe-transactions", async (req: Request, res: Response) => {
+    try {
+        const body = req.body;
+        // Basic validation
+        if (!body.employee_id || !body.amount) {
+            return res.status(400).json({ success: false, error: "Missing required fields" });
+        }
+
+        const newTransaction = new SwipeTransaction({
+            employeeId: body.employee_id,
+            swipeType: body.swipe_type,
+            swipeMode: body.swipe_mode,
+            batchNumber: body.batch_number,
+            amount: body.amount,
+            transactionDate: body.transaction_date || new Date(),
+            shift: body.shift,
+            note: body.note,
+            imageUrl: body.image_url
+        });
+
+        const saved = await newTransaction.save();
+        res.json({ success: true, data: { ...saved.toObject(), id: saved._id }, ok: true });
+    } catch (error: any) {
+        res.status(400).json({ success: false, error: error.message });
+    }
+});
+
+relationalRouter.get("/swipe-machines", async (req: Request, res: Response) => {
+    try {
+        const results = await SwipeMachine.find({ status: 'Active' }).sort({ machineName: 1 });
+        const mapped = results.map(r => ({
+            id: r._id,
+            machine_name: r.machineName,
+            machine_type: r.machineType,
+            provider: r.provider,
+            machine_id: r.machineId,
+            status: r.status,
+            created_at: r.createdAt
+        }));
+        res.json({ success: true, rows: mapped, ok: true });
     } catch (error: any) {
         res.status(500).json({ success: false, error: error.message });
     }
@@ -1541,7 +1762,7 @@ relationalRouter.get("/swipe-transactions", async (req: Request, res: Response) 
 relationalRouter.get("/employee-cash-recovery", async (req: Request, res: Response) => {
     try {
         const { from_date, to_date } = req.query;
-        let conditions = [];
+        const conditions = [];
         if (from_date) conditions.push(gte(employeeCashRecovery.recoveryDate, String(from_date)));
         if (to_date) conditions.push(lte(employeeCashRecovery.recoveryDate, String(to_date)));
 
@@ -1558,7 +1779,7 @@ relationalRouter.get("/employee-cash-recovery", async (req: Request, res: Respon
 relationalRouter.get("/day-settlements", async (req: Request, res: Response) => {
     try {
         const { from_date, to_date } = req.query;
-        let conditions = [];
+        const conditions = [];
         if (from_date) conditions.push(gte(daySettlements.settlementDate, String(from_date)));
         if (to_date) conditions.push(lte(daySettlements.settlementDate, String(to_date)));
 
@@ -1588,14 +1809,14 @@ relationalRouter.get("/expiry-items", async (req: Request, res: Response) => {
                 issue_date: r.issueDate,
                 expiry_date: r.expiryDate, // Ensure field matches frontend expectation
                 category_name: (r as any).category || '',
-                created_at: r.createdAt,
+                created_at: (r as any).createdAt,
                 s_no: index + 1
             }));
             return res.json({ success: true, rows: mapped, ok: true });
         }
 
         const results = await db.select().from(expiryItems).orderBy(desc(expiryItems.createdAt));
-        const mapped = results.map((r, index) => ({
+        const mapped = results.map((r: any, index: any) => ({
             ...r,
             item_name: r.itemName,
             issue_date: r.issueDate,
@@ -1649,7 +1870,7 @@ relationalRouter.delete("/expiry-items/:id", async (req: Request, res: Response)
 relationalRouter.get("/categories", async (req: Request, res: Response) => {
     try {
         const results = await db.select().from(expiryCategories).where(eq(expiryCategories.isActive, true));
-        const mapped = results.map(r => ({
+        const mapped = results.map((r: any) => ({
             ...r,
             category_name: r.categoryName,
             created_at: r.createdAt
@@ -1691,7 +1912,7 @@ relationalRouter.delete("/categories/:id", async (req: Request, res: Response) =
 relationalRouter.get("/employees", async (req: Request, res: Response) => {
     try {
         const results = await Employee.find({ isActive: true }).sort({ createdAt: -1 });
-        const mapped = results.map(r => ({
+        const mapped = results.map((r: any) => ({
             ...r.toObject(),
             id: r._id,
             join_date: r.joinDate,
@@ -1807,4 +2028,5 @@ relationalRouter.delete("/employees/:id", async (req: Request, res: Response) =>
         res.status(500).json({ success: false, error: error.message });
     }
 });
+
 

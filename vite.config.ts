@@ -14,7 +14,7 @@ export default defineConfig(({ mode }) => ({
     ws: false, // Disable WebSocket to prevent connection errors
     proxy: {
       '/api': {
-        target: 'http://localhost:5001',
+        target: 'http://localhost:5002',
         changeOrigin: true,
         secure: false,
       },

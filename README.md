@@ -2,7 +2,7 @@
 
 A comprehensive management system for petrol pump operations including sales, inventory, employees, and financial tracking.
 
-## 🚀 Quick Start
+## 🚀 Quick Start.
 
 ### Prerequisites
 - Node.js (v18 or higher)
@@ -51,10 +51,35 @@ PetroPal/
 - `npm run test:unit` - Run unit tests
 - `npm run test:integration` - Run integration tests
 
+## 🚀 Local Development & Deployment
+
+**New to the project?** Start here:
+
+1. **Run Locally First:**
+   ```bash
+   npm install
+   npm run dev
+   ```
+   Server runs on `http://localhost:5000`
+
+2. **Test Production Build:**
+   ```bash
+   npm run build
+   npm run start
+   ```
+
+3. **Deploy:**
+   - Push to GitHub (auto-deploys on Render/Vercel)
+   - See **[LOCAL_AND_DEPLOYMENT_GUIDE.md](./LOCAL_AND_DEPLOYMENT_GUIDE.md)** for detailed steps
+
+For complete instructions, see **[LOCAL_AND_DEPLOYMENT_GUIDE.md](./LOCAL_AND_DEPLOYMENT_GUIDE.md)**
+
 ## 📚 Documentation
 
 Comprehensive documentation is available:
 
+- **Local & Deployment Guide** - `LOCAL_AND_DEPLOYMENT_GUIDE.md` - Run locally, then deploy
+- **Render Deployment Fix** - `RENDER_DEPLOYMENT_FIX.md` - Render-specific deployment issues
 - **Project Structure** - `PROJECT_STRUCTURE.md` - Detailed directory guide
 - **API Reference** - `docs/API_REFERENCE.md` - All API endpoints
 - **Database Schema** - `docs/DATABASE_SCHEMA_DOCUMENTATION.md` - Database structure

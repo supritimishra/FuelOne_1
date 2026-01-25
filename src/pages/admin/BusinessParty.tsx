@@ -20,8 +20,12 @@ const businessPartySchema = z.object({
   opening_date: z.string().optional(),
   opening_type: z.enum(["Payable", "Receivable"]).optional(), // Balance Type
   address: z.string().optional(),
-  phone_number: z.string().optional(),
-  email: z.string().email("Invalid email").optional().or(z.literal("")),
+  phone_number: z.string().refine((val) => !val || val.length === 10, {
+    message: "Phone number must be exactly 10 digits"
+  }).optional(),
+  email: z.string().refine((val) => !val || val === "" || z.string().email().safeParse(val).success, {
+    message: "Invalid email format"
+  }).optional(),
   description: z.string().optional(),
   party_type: z.string().min(1, "Party Type is required"),
 });
@@ -34,6 +38,8 @@ const BusinessParty = () => {
   const [deleteConfirm, setDeleteConfirm] = useState<string | null>(null);
   const [searchTerm, setSearchTerm] = useState("");
   const [isLoading, setIsLoading] = useState(true);
+  const [itemsPerPage, setItemsPerPage] = useState<number | 'all'>('all');
+  const [currentPage, setCurrentPage] = useState(1);
   const { toast } = useToast();
 
   const form = useForm<BusinessPartyFormData>({
@@ -165,10 +171,37 @@ const BusinessParty = () => {
     setDeleteConfirm(null);
   };
 
+  const toggleStatus = async (partyId: string, currentStatus: boolean) => {
+    try {
+      const response = await fetch(`/api/business-parties/${partyId}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({ is_active: !currentStatus })
+      });
+      const result = await response.json();
+
+      if (result.ok) {
+        toast({ title: "Success", description: `Party ${!currentStatus ? 'activated' : 'deactivated'} successfully` });
+        fetchParties();
+      } else {
+        toast({ title: "Error", description: result.error || "Failed to update status", variant: "destructive" });
+      }
+    } catch (error) {
+      toast({ title: "Error", description: "Failed to update status", variant: "destructive" });
+    }
+  };
+
   const filteredParties = parties.filter((item) =>
-    item.party_name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    item.party_type.toLowerCase().includes(searchTerm.toLowerCase())
+    (item.party_name || "").toLowerCase().includes(searchTerm.toLowerCase()) ||
+    (item.party_type || "").toLowerCase().includes(searchTerm.toLowerCase())
   );
+
+  const totalItems = filteredParties.length;
+  const totalPages = itemsPerPage === 'all' ? 1 : Math.ceil(totalItems / itemsPerPage);
+  const startIndex = itemsPerPage === 'all' ? 0 : (currentPage - 1) * itemsPerPage;
+  const endIndex = itemsPerPage === 'all' ? totalItems : startIndex + itemsPerPage;
+  const paginatedParties = itemsPerPage === 'all' ? filteredParties : filteredParties.slice(startIndex, endIndex);
 
   return (
     <div className="space-y-6">
@@ -261,7 +294,11 @@ const BusinessParty = () => {
                   {...form.register("phone_number")}
                   className="bg-white border-blue-200 focus:border-blue-500"
                   placeholder="Phone Number"
+                  maxLength={10}
                 />
+                {form.formState.errors.phone_number && (
+                  <p className="text-xs text-red-500 mt-1">{form.formState.errors.phone_number.message}</p>
+                )}
               </div>
               <div>
                 <Label htmlFor="email" className="text-blue-900 font-semibold">Email</Label>
@@ -272,6 +309,9 @@ const BusinessParty = () => {
                   className="bg-white border-blue-200 focus:border-blue-500"
                   placeholder="Email"
                 />
+                {form.formState.errors.email && (
+                  <p className="text-xs text-red-500 mt-1">{form.formState.errors.email.message}</p>
+                )}
               </div>
               <div>
                 <Label htmlFor="description" className="text-blue-900 font-semibold">Description</Label>
@@ -310,15 +350,23 @@ const BusinessParty = () => {
           <div className="p-4 flex justify-between items-center bg-white border-b">
             <div className="flex items-center gap-2">
               <span className="text-sm text-gray-500">Show:</span>
-              <select className="border rounded p-1 text-sm bg-white">
-                <option>All</option>
+              <select 
+                className="border rounded p-1 text-sm bg-white"
+                value={itemsPerPage}
+                onChange={(e) => {
+                  const value = e.target.value === 'all' ? 'all' : Number(e.target.value);
+                  setItemsPerPage(value);
+                  setCurrentPage(1);
+                }}
+              >
+                <option value="all">All</option>
+                <option value="10">10</option>
+                <option value="50">50</option>
+                <option value="100">100</option>
+                <option value="500">500</option>
               </select>
             </div>
             <div className="flex items-center gap-4">
-              <div className="flex gap-1">
-                <Button variant="outline" size="sm" className="text-green-600 border-green-200 bg-green-50">CSV</Button>
-                <Button variant="outline" size="sm" className="text-red-600 border-red-200 bg-red-50">PDF</Button>
-              </div>
               <div className="flex items-center gap-2">
                 <span className="text-sm text-gray-500">Filter:</span>
                 <Input
@@ -347,20 +395,20 @@ const BusinessParty = () => {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {filteredParties.length === 0 ? (
+                {paginatedParties.length === 0 ? (
                   <TableRow>
                     <TableCell colSpan={9} className="text-center py-8 text-gray-500">
                       No parties found. Add your first party above.
                     </TableCell>
                   </TableRow>
                 ) : (
-                  filteredParties.map((item, index) => (
+                  paginatedParties.map((item, index) => (
                     <TableRow key={item.id} className="hover:bg-gray-50">
-                      <TableCell>{index + 1}</TableCell>
+                      <TableCell>{startIndex + index + 1}</TableCell>
                       <TableCell className="font-medium">{item.party_name}</TableCell>
-                      <TableCell>{item.phone_number || "-"}</TableCell>
-                      <TableCell>{item.address || "-"}</TableCell>
-                      <TableCell>{item.description || "-"}</TableCell>
+                      <TableCell>{item.phone_number || "N/A"}</TableCell>
+                      <TableCell>{item.address || "N/A"}</TableCell>
+                      <TableCell>{item.description || "N/A"}</TableCell>
                       <TableCell>₹{item.opening_balance || 0}</TableCell>
                       <TableCell className="text-center">
                         <div className="flex justify-center gap-2">
@@ -383,9 +431,33 @@ const BusinessParty = () => {
                         </div>
                       </TableCell>
                       <TableCell className="text-center">
-                        <span className={`text-xs px-2 py-1 rounded font-bold ${item.is_active ? 'bg-[#10b981] text-white' : 'bg-gray-200 text-gray-600'}`}>
-                          {item.is_active ? 'ACTIVATED' : 'DISABLED'}
-                        </span>
+                        <div className="flex flex-col items-center gap-2">
+                          <button
+                            onClick={() => toggleStatus(item.id, item.is_active ?? true)}
+                            className={`relative inline-flex h-8 w-16 items-center rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-offset-2 ${
+                              (item.is_active ?? true)
+                                ? 'bg-blue-600 focus:ring-blue-500' 
+                                : 'bg-gray-300 focus:ring-gray-400'
+                            }`}
+                            role="switch"
+                            aria-checked={item.is_active ?? true}
+                          >
+                            <span
+                              className={`inline-block h-6 w-6 transform rounded-full bg-white shadow-lg transition-transform ${
+                                (item.is_active ?? true) ? 'translate-x-9' : 'translate-x-1'
+                              }`}
+                            />
+                          </button>
+                          <span 
+                            className={`text-xs font-semibold px-2 py-1 rounded ${
+                              (item.is_active ?? true)
+                                ? 'bg-green-100 text-green-800' 
+                                : 'bg-gray-100 text-gray-600'
+                            }`}
+                          >
+                            {(item.is_active ?? true) ? 'ACTIVE' : 'INACTIVE'}
+                          </span>
+                        </div>
                       </TableCell>
                       <TableCell className="text-xs text-gray-500">
                         Created: Super Admin {item.created_at ? new Date(item.created_at).toLocaleString() : 'N/A'}
@@ -398,11 +470,38 @@ const BusinessParty = () => {
           </div>
 
           <div className="p-4 border-t text-sm text-gray-500 flex justify-between items-center">
-            <span>Showing 1 to {filteredParties.length} of {filteredParties.length} entries</span>
+            <span>
+              Showing {paginatedParties.length === 0 ? 0 : startIndex + 1} to {Math.min(endIndex, totalItems)} of {totalItems} entries
+              {searchTerm && ` (filtered from ${parties.length} total entries)`}
+            </span>
             <div className="flex gap-1">
-              <Button variant="outline" size="sm" disabled>&larr;</Button>
-              <Button variant="outline" size="sm" className="bg-gray-100">1</Button>
-              <Button variant="outline" size="sm" disabled>&rarr;</Button>
+              <Button 
+                variant="outline" 
+                size="sm" 
+                disabled={currentPage === 1 || itemsPerPage === 'all'}
+                onClick={() => setCurrentPage(currentPage - 1)}
+              >
+                &larr;
+              </Button>
+              {Array.from({ length: totalPages }, (_, i) => i + 1).map(page => (
+                <Button
+                  key={page}
+                  variant="outline"
+                  size="sm"
+                  className={currentPage === page ? "bg-blue-100" : ""}
+                  onClick={() => setCurrentPage(page)}
+                >
+                  {page}
+                </Button>
+              ))}
+              <Button 
+                variant="outline" 
+                size="sm" 
+                disabled={currentPage === totalPages || itemsPerPage === 'all'}
+                onClick={() => setCurrentPage(currentPage + 1)}
+              >
+                &rarr;
+              </Button>
             </div>
           </div>
         </CardContent>

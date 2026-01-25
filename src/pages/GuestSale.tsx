@@ -1,559 +1,489 @@
-import { useState } from "react";
-import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table";
-import { toast } from "@/hooks/use-toast";
-import { useForm } from "react-hook-form";
-import { zodResolver } from "@hookform/resolvers/zod";
-import { z } from "zod";
-import {
-  Form,
-  FormControl,
-  FormField,
-  FormItem,
-  FormLabel,
-  FormMessage,
-} from "@/components/ui/form";
-import { Edit, Trash2, Save, Plus } from "lucide-react";
-import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-} from "@/components/ui/alert-dialog";
+import { useState, useEffect } from 'react';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { useToast } from '@/hooks/use-toast';
+import { Plus, Search, Edit, Trash2, Save } from 'lucide-react';
 
-const guestEntrySchema = z.object({
-  sale_date: z.string().min(1, "Date is required"),
-  customer_name: z.string().min(1, "Customer Name is required"),
-  mobile_number: z.string().min(10, "Mobile Number must be at least 10 digits"),
-  discount: z.coerce.number().optional(),
-  fuel_product_id: z.string().min(1, "Product is required"),
-  bill_no: z.string().optional(), // GST / TIN
-  vehicle_number: z.string().min(1, "Vehicle Number is required"),
-});
+interface VehicleNumber {
+  tempId: string;
+  value: string;
+}
 
-type GuestEntryForm = z.infer<typeof guestEntrySchema>;
+interface FormData {
+  date: string;
+  customerName: string;
+  mobileNumber: string;
+  discountAmount: string;
+  offerType: string;
+  gstTin: string;
+  vehicleNumbers: VehicleNumber[];
+}
+
+interface GuestEntry {
+  _id: string;
+  saleDate: string;
+  customerName: string;
+  mobileNumber: string;
+  discount: number;
+  offerType: string;
+  gstNumber: string;
+  vehicleNumbers: string[];
+  status: string;
+  createdBy?: {
+    username: string;
+    _id: string;
+  };
+  createdAt: string;
+}
 
 export default function GuestSale() {
-  const queryClient = useQueryClient();
+  const { toast } = useToast();
+  const [formData, setFormData] = useState<FormData>({
+    date: new Date().toISOString().split('T')[0],
+    customerName: '',
+    mobileNumber: '',
+    discountAmount: '',
+    offerType: 'percentage',
+    gstTin: '',
+    vehicleNumbers: [{ tempId: crypto.randomUUID(), value: '' }]
+  });
+
+  const [guestEntries, setGuestEntries] = useState<GuestEntry[]>([]);
+  const [searchQuery, setSearchQuery] = useState('');
+  const [itemsPerPage, setItemsPerPage] = useState<'all' | number>('all');
+  const [currentPage, setCurrentPage] = useState(1);
   const [editingId, setEditingId] = useState<string | null>(null);
-  const [deleteId, setDeleteId] = useState<string | null>(null);
-  const [searchTerm, setSearchTerm] = useState("");
 
-  const { data: fuelProducts = [] } = useQuery<any[]>({
-    queryKey: ["/api/fuel-products"],
-    queryFn: async () => {
-      const response = await fetch("/api/fuel-products", { credentials: "include" });
-      const result = await response.json();
-      return result.rows || [];
-    },
-  });
+  useEffect(() => {
+    fetchGuestEntries();
+  }, []);
 
-  const { data: guestEntries = [], isLoading } = useQuery<any[]>({
-    queryKey: ["/api/guest-sales"],
-    queryFn: async () => {
-      const response = await fetch("/api/guest-sales", { credentials: "include" });
-      const result = await response.json();
-      if (!result.ok) throw new Error(result.error || "Failed to fetch");
-      return result.rows || [];
-    },
-  });
-
-  const form = useForm<GuestEntryForm>({
-    resolver: zodResolver(guestEntrySchema),
-    defaultValues: {
-      sale_date: new Date().toISOString().slice(0, 10),
-      customer_name: "",
-      mobile_number: "",
-      discount: 0,
-      fuel_product_id: "",
-      bill_no: "",
-      vehicle_number: "",
-    },
-  });
-
-  const createMutation = useMutation({
-    mutationFn: async (formData: GuestEntryForm) => {
-      const response = await fetch("/api/guest-sales", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        credentials: "include",
-        body: JSON.stringify({
-          ...formData,
-          quantity: 0,
-          price_per_unit: 0,
-          total_amount: 0,
-          payment_mode: "Cash",
-          sale_type: "S-1",
-        }),
+  const fetchGuestEntries = async () => {
+    try {
+      const response = await fetch('/api/guest-sales', {
+        credentials: 'include',
       });
-      const result = await response.json();
-      if (!result.ok) throw new Error(result.error || "Failed to create");
-      return result;
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["/api/guest-sales"] });
-      toast({ title: "Guest entry added successfully" });
-      form.reset({
-        sale_date: new Date().toISOString().slice(0, 10),
-        customer_name: "",
-        mobile_number: "",
-        discount: 0,
-        fuel_product_id: "",
-        bill_no: "",
-        vehicle_number: "",
-      });
-    },
-    onError: (err: any) => {
-      toast({
-        title: "Failed to add guest entry",
-        description: err.message,
-        variant: "destructive",
-      });
-    },
-  });
-
-  const updateMutation = useMutation({
-    mutationFn: async (formData: GuestEntryForm & { id: string }) => {
-      const response = await fetch(`/api/guest-sales/${formData.id}`, {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        credentials: "include",
-        body: JSON.stringify({
-          ...formData,
-          quantity: 0,
-          price_per_unit: 0,
-          total_amount: 0,
-        }),
-      });
-      const result = await response.json();
-      if (!result.ok) throw new Error(result.error || "Failed to update");
-      return result;
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["/api/guest-sales"] });
-      toast({ title: "Guest entry updated successfully" });
-      setEditingId(null);
-      form.reset({
-        sale_date: new Date().toISOString().slice(0, 10),
-        customer_name: "",
-        mobile_number: "",
-        discount: 0,
-        fuel_product_id: "",
-        bill_no: "",
-        vehicle_number: "",
-      });
-    },
-    onError: (err: any) => {
-      toast({
-        title: "Failed to update guest entry",
-        description: err.message,
-        variant: "destructive",
-      });
-    },
-  });
-
-  const deleteMutation = useMutation({
-    mutationFn: async (id: string) => {
-      const response = await fetch(`/api/guest-sales/${id}`, {
-        method: "DELETE",
-        credentials: "include",
-      });
-      const result = await response.json();
-      if (!result.ok) throw new Error(result.error || "Failed to delete");
-      return result;
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["/api/guest-sales"] });
-      toast({ title: "Guest entry deleted successfully" });
-      setDeleteId(null);
-    },
-    onError: (err: any) => {
-      toast({
-        title: "Failed to delete guest entry",
-        description: err.message,
-        variant: "destructive",
-      });
-    },
-  });
-
-  const handleEdit = (item: any) => {
-    setEditingId(item.id);
-    form.reset({
-      sale_date: item.sale_date ? new Date(item.sale_date).toISOString().slice(0, 10) : "",
-      customer_name: item.customer_name || "",
-      mobile_number: item.mobile_number || "",
-      discount: item.discount || 0,
-      fuel_product_id: item.fuel_product_id || "",
-      bill_no: item.bill_no || "",
-      vehicle_number: item.vehicle_number || "",
-    });
-    window.scrollTo({ top: 0, behavior: "smooth" });
-  };
-
-  const onSubmit = (data: GuestEntryForm) => {
-    if (editingId) {
-      updateMutation.mutate({ ...data, id: editingId });
-    } else {
-      createMutation.mutate(data);
+      if (response.ok) {
+        const result = await response.json();
+        const data = result.data || result.rows || result;
+        setGuestEntries(Array.isArray(data) ? data : []);
+      } else {
+        setGuestEntries([]);
+      }
+    } catch (error) {
+      console.error('Error fetching guest entries:', error);
+      setGuestEntries([]);
     }
   };
 
-  const filteredEntries = guestEntries.filter((item) =>
-    (item.customer_name?.toLowerCase() || "").includes(searchTerm.toLowerCase()) ||
-    (item.mobile_number || "").includes(searchTerm) ||
-    (item.vehicle_number?.toLowerCase() || "").includes(searchTerm.toLowerCase())
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    try {
+      const discount = parseFloat(formData.discountAmount) || 0;
+      const payload = {
+        saleDate: formData.date,
+        customerName: formData.customerName,
+        mobileNumber: formData.mobileNumber,
+        discount: discount,
+        totalAmount: discount,
+        offerType: formData.offerType,
+        gstNumber: formData.gstTin,
+        vehicleNumbers: formData.vehicleNumbers.map(v => v.value).filter(v => v.trim()),
+        status: 'active'
+      };
+
+      const url = editingId
+        ? `/api/guest-sales/${editingId}`
+        : '/api/guest-sales';
+      const method = editingId ? 'PUT' : 'POST';
+
+      const response = await fetch(url, {
+        method,
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        credentials: 'include',
+        body: JSON.stringify(payload),
+      });
+
+      if (response.ok) {
+        toast({
+          title: editingId ? 'Guest sale updated' : 'Guest sale added',
+          description: editingId ? 'Guest sale has been updated successfully.' : 'Guest sale has been added successfully.',
+        });
+        setFormData({
+          date: new Date().toISOString().split('T')[0],
+          customerName: '',
+          mobileNumber: '',
+          discountAmount: '',
+          offerType: 'percentage',
+          gstTin: '',
+          vehicleNumbers: [{ tempId: crypto.randomUUID(), value: '' }]
+        });
+        setEditingId(null);
+        fetchGuestEntries();
+      } else {
+        const error = await response.json();
+        toast({
+          title: 'Error',
+          description: error.message || 'Failed to save guest sale',
+          variant: 'destructive',
+        });
+      }
+    } catch (error) {
+      console.error('Error saving guest sale:', error);
+      toast({
+        title: 'Error',
+        description: 'Failed to save guest sale',
+        variant: 'destructive',
+      });
+    }
+  };
+
+  const addVehicleField = () => {
+    setFormData(prev => ({
+      ...prev,
+      vehicleNumbers: [...prev.vehicleNumbers, { tempId: crypto.randomUUID(), value: '' }]
+    }));
+  };
+
+  const removeVehicleField = (tempId: string) => {
+    if (formData.vehicleNumbers.length > 1) {
+      setFormData(prev => ({
+        ...prev,
+        vehicleNumbers: prev.vehicleNumbers.filter(v => v.tempId !== tempId)
+      }));
+    }
+  };
+
+  const updateVehicle = (tempId: string, value: string) => {
+    setFormData(prev => ({
+      ...prev,
+      vehicleNumbers: prev.vehicleNumbers.map(v =>
+        v.tempId === tempId ? { ...v, value } : v
+      )
+    }));
+  };
+
+  const handleEdit = (entry: GuestEntry) => {
+    setFormData({
+      date: entry.saleDate?.split('T')[0] || new Date().toISOString().split('T')[0],
+      customerName: entry.customerName || '',
+      mobileNumber: entry.mobileNumber || '',
+      discountAmount: entry.discount?.toString() || '0',
+      offerType: entry.offerType || 'percentage',
+      gstTin: entry.gstNumber || '',
+      vehicleNumbers: entry.vehicleNumbers?.length > 0
+        ? entry.vehicleNumbers.map(v => ({ tempId: crypto.randomUUID(), value: v }))
+        : [{ tempId: crypto.randomUUID(), value: '' }]
+    });
+    setEditingId(entry._id);
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  };
+
+  const handleDelete = async (id: string) => {
+    try {
+      const response = await fetch(`/api/guest-sales/${id}`, {
+        method: 'DELETE',
+        credentials: 'include',
+      });
+
+      if (response.ok) {
+        toast({
+          title: 'Guest sale deleted',
+          description: 'Guest sale has been deleted successfully.',
+        });
+        fetchGuestEntries();
+      } else {
+        toast({
+          title: 'Error',
+          description: 'Failed to delete guest sale',
+          variant: 'destructive',
+        });
+      }
+    } catch (error) {
+      console.error('Error deleting guest sale:', error);
+      toast({
+        title: 'Error',
+        description: 'Failed to delete guest sale',
+        variant: 'destructive',
+      });
+    }
+  };
+
+  const handleStatusToggle = async (id: string, currentStatus: string) => {
+    try {
+      const newStatus = currentStatus === 'active' ? 'inactive' : 'active';
+
+      const response = await fetch(`/api/guest-sales/${id}/status`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        credentials: 'include',
+        body: JSON.stringify({ status: newStatus }),
+      });
+
+      if (response.ok) {
+        toast({
+          title: 'Status updated',
+          description: `Guest sale ${newStatus === 'active' ? 'activated' : 'deactivated'}`,
+        });
+        fetchGuestEntries();
+      }
+    } catch (error) {
+      console.error('Error updating status:', error);
+    }
+  };
+
+  const filteredEntries = guestEntries.filter(entry =>
+    (entry.customerName || '').toLowerCase().includes(searchQuery.toLowerCase()) ||
+    (entry.mobileNumber || '').includes(searchQuery) ||
+    entry.vehicleNumbers?.some(v => v.toLowerCase().includes(searchQuery.toLowerCase()))
   );
+
+  const paginatedEntries = itemsPerPage === 'all'
+    ? filteredEntries
+    : filteredEntries.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage);
 
   return (
     <div className="space-y-6">
-      <Card className="border-t-4 border-t-blue-600 shadow-md">
-        <CardHeader className="bg-blue-600 text-white py-3">
-          <CardTitle className="text-lg font-medium">Create Guest Customer</CardTitle>
-        </CardHeader>
-        <CardContent className="p-6 bg-blue-50">
-          <Form {...form}>
-            <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
-              <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
-                <FormField
-                  control={form.control}
-                  name="sale_date"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel className="text-blue-900 font-semibold">Choose Date</FormLabel>
-                      <div className="flex gap-2">
-                        <Button
-                          type="button"
-                          variant="secondary"
-                          className="bg-yellow-400 hover:bg-yellow-500 text-black font-medium px-4"
-                        >
-                          Choose Date
-                        </Button>
-                        <FormControl>
-                          <Input type="date" {...field} className="bg-white border-blue-200 focus:border-blue-500" />
-                        </FormControl>
-                      </div>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
+      <div className="bg-blue-600 text-white px-6 py-4 rounded-t-lg">
+        <h1 className="text-2xl font-bold">Guest Customer</h1>
+      </div>
 
-                <FormField
-                  control={form.control}
-                  name="customer_name"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel className="text-blue-900 font-semibold">
-                        Customer Name <span className="text-red-500">*</span>
-                      </FormLabel>
-                      <FormControl>
-                        <Input
-                          {...field}
-                          className="bg-white border-blue-200 focus:border-blue-500"
-                          placeholder="Enter Name"
-                        />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-
-                <FormField
-                  control={form.control}
-                  name="mobile_number"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel className="text-blue-900 font-semibold">
-                        Mobile Number <span className="text-red-500">*</span>
-                      </FormLabel>
-                      <FormControl>
-                        <Input
-                          {...field}
-                          className="bg-white border-blue-200 focus:border-blue-500"
-                          placeholder="Enter Mobile Number"
-                        />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-
-                <FormField
-                  control={form.control}
-                  name="discount"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel className="text-blue-900 font-semibold">Discount Amount</FormLabel>
-                      <FormControl>
-                        <Input
-                          type="number"
-                          {...field}
-                          className="bg-white border-blue-200 focus:border-blue-500"
-                          placeholder="Enter Discount"
-                        />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-
-                <FormField
-                  control={form.control}
-                  name="fuel_product_id"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel className="text-blue-900 font-semibold">Select</FormLabel>
-                      <Select onValueChange={field.onChange} value={field.value}>
-                        <FormControl>
-                          <SelectTrigger className="bg-white border-blue-200 focus:border-blue-500">
-                            <SelectValue placeholder="Select Product" />
-                          </SelectTrigger>
-                        </FormControl>
-                        <SelectContent>
-                          {fuelProducts.map((product) => (
-                            <SelectItem key={product.id} value={product.id}>
-                              {product.product_name}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-
-                <FormField
-                  control={form.control}
-                  name="bill_no"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel className="text-blue-900 font-semibold">GST / TIN</FormLabel>
-                      <FormControl>
-                        <Input
-                          {...field}
-                          className="bg-white border-blue-200 focus:border-blue-500"
-                          placeholder="Enter GST / TIN"
-                        />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-
-                <FormField
-                  control={form.control}
-                  name="vehicle_number"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel className="text-blue-900 font-semibold">
-                        Vehicle Number <span className="text-red-500">*</span>
-                      </FormLabel>
-                      <div className="flex gap-2">
-                        <FormControl>
-                          <Input
-                            {...field}
-                            className="bg-white border-blue-200 focus:border-blue-500"
-                            placeholder="Enter Vehicle Number"
-                          />
-                        </FormControl>
-                        <Button
-                          type="button"
-                          size="icon"
-                          className="bg-blue-600 hover:bg-blue-700 text-white shrink-0"
-                        >
-                          <Plus className="h-4 w-4" />
-                        </Button>
-                      </div>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-              </div>
-
-              <div className="flex justify-center mt-6">
-                <Button
-                  type="submit"
-                  className="bg-[#84cc16] hover:bg-[#65a30d] text-white px-8 font-bold rounded-full"
-                  disabled={createMutation.isPending || updateMutation.isPending}
-                >
-                  <Save className="h-4 w-4 mr-2" />{" "}
-                  {createMutation.isPending || updateMutation.isPending ? "SAVING..." : "SAVE"}
-                </Button>
-              </div>
-            </form>
-          </Form>
-        </CardContent>
-      </Card>
-
-      <Card>
-        <CardContent className="p-0">
-          <div className="p-4 flex justify-between items-center bg-white border-b">
-            <div className="flex items-center gap-2">
-              <span className="text-sm text-gray-500">Show:</span>
-              <select className="border rounded p-1 text-sm bg-white">
-                <option>All</option>
-              </select>
+      <Card className="p-6 bg-gray-50 border-blue-100">
+        <form onSubmit={handleSubmit} className="space-y-4">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
+            <div>
+              <label className="block mb-2 text-blue-700 font-semibold text-sm">Date <span className="text-red-500">*</span></label>
+              <Input
+                type="date"
+                value={formData.date}
+                onChange={(e) => setFormData({ ...formData, date: e.target.value })}
+                required
+              />
             </div>
-            <div className="flex items-center gap-4">
-              <div className="flex gap-1">
-                <Button
-                  variant="outline"
-                  size="sm"
-                  className="text-green-600 border-green-200 bg-green-50"
-                >
-                  CSV
-                </Button>
-                <Button variant="outline" size="sm" className="text-red-600 border-red-200 bg-red-50">
-                  PDF
-                </Button>
-              </div>
-              <div className="flex items-center gap-2">
-                <span className="text-sm text-gray-500">Filter:</span>
-                <Input
-                  placeholder="Type to filter..."
-                  className="h-8 w-48"
-                  value={searchTerm}
-                  onChange={(e) => setSearchTerm(e.target.value)}
-                />
-              </div>
+
+            <div>
+              <label className="block mb-2 text-blue-700 font-semibold text-sm">Customer Name <span className="text-red-500">*</span></label>
+              <Input
+                type="text"
+                placeholder="Customer Name"
+                value={formData.customerName}
+                onChange={(e) => setFormData({ ...formData, customerName: e.target.value })}
+                required
+              />
+            </div>
+
+            <div>
+              <label className="block mb-2 text-blue-700 font-semibold text-sm">Mobile Number <span className="text-red-500">*</span></label>
+              <Input
+                type="tel"
+                placeholder="Mobile Number"
+                value={formData.mobileNumber}
+                onChange={(e) => setFormData({ ...formData, mobileNumber: e.target.value })}
+                required
+              />
+            </div>
+
+            <div>
+              <label className="block mb-2 text-blue-700 font-semibold text-sm">Discount Amount <span className="text-red-500">*</span></label>
+              <Input
+                type="number"
+                step="0.01"
+                placeholder="Discount Amount"
+                value={formData.discountAmount}
+                onChange={(e) => setFormData({ ...formData, discountAmount: e.target.value })}
+                required
+              />
+            </div>
+
+            <div>
+              <label className="block mb-2 text-blue-700 font-semibold text-sm">Offer Type</label>
+              <Select value={formData.offerType} onValueChange={(v) => setFormData({ ...formData, offerType: v })}>
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="percentage">Percentage</SelectItem>
+                  <SelectItem value="flat">Flat</SelectItem>
+                </SelectContent>
+              </Select>
             </div>
           </div>
 
-          <div className="overflow-x-auto">
-            <Table>
-              <TableHeader className="bg-gray-50">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div>
+              <label className="block mb-2 text-blue-700 font-semibold text-sm">Gst/TIN No</label>
+              <Input
+                type="text"
+                placeholder="Gst/TIN No"
+                value={formData.gstTin}
+                onChange={(e) => setFormData({ ...formData, gstTin: e.target.value })}
+              />
+            </div>
+          </div>
+
+          <div className="space-y-4">
+            <label className="block mb-2 text-blue-700 font-semibold text-sm">Vehicle Numbers</label>
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+              {formData.vehicleNumbers.map((vehicle, index) => (
+                <div key={vehicle.tempId} className="flex gap-2 items-center">
+                  <Input
+                    type="text"
+                    placeholder="Vehicle Number"
+                    value={vehicle.value}
+                    onChange={(e) => updateVehicle(vehicle.tempId, e.target.value)}
+                    className="flex-1"
+                  />
+                  <div className="flex gap-1">
+                    {index === formData.vehicleNumbers.length - 1 ? (
+                      <Button
+                        type="button"
+                        onClick={addVehicleField}
+                        variant="secondary"
+                        className="bg-blue-500 hover:bg-blue-600 text-white rounded-full w-8 h-8 p-0"
+                      >
+                        <Plus size={16} />
+                      </Button>
+                    ) : (
+                      <Button
+                        type="button"
+                        onClick={() => removeVehicleField(vehicle.tempId)}
+                        variant="destructive"
+                        className="rounded-full w-8 h-8 p-0"
+                      >
+                        <Trash2 size={14} />
+                      </Button>
+                    )}
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          <div className="flex justify-center pt-4">
+            <Button type="submit" className="bg-[#84cc16] hover:bg-[#65a30d] text-white px-12 font-bold h-11">
+              {editingId ? "UPDATE" : "SAVE"}
+            </Button>
+          </div>
+        </form>
+      </Card>
+
+      <Card className="overflow-hidden">
+        <div className="bg-white p-4 border-b flex flex-wrap justify-between items-center gap-4">
+          <div className="flex items-center gap-2">
+            <span className="text-sm text-gray-500 font-semibold">Show:</span>
+            <Select value={String(itemsPerPage)} onValueChange={(v) => setItemsPerPage(v === 'all' ? 'all' : Number(v))}>
+              <SelectTrigger className="w-24 h-8">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All</SelectItem>
+                <SelectItem value="10">10</SelectItem>
+                <SelectItem value="50">50</SelectItem>
+                <SelectItem value="100">100</SelectItem>
+              </SelectContent>
+            </Select>
+            <span className="text-sm text-gray-500">entries</span>
+          </div>
+          <div className="flex items-center gap-2">
+            <Search className="h-4 w-4 text-gray-400" />
+            <Input
+              placeholder="Filter guest sales..."
+              className="h-8 w-64"
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+            />
+          </div>
+        </div>
+
+        <div className="overflow-x-auto">
+          <Table>
+            <TableHeader className="bg-gray-50">
+              <TableRow>
+                <TableHead className="font-bold text-gray-700">S.No</TableHead>
+                <TableHead className="font-bold text-gray-700 text-center">Status</TableHead>
+                <TableHead className="font-bold text-gray-700 text-center">Action</TableHead>
+                <TableHead className="font-bold text-gray-700">Customer Name</TableHead>
+                <TableHead className="font-bold text-gray-700">Mobile Number</TableHead>
+                <TableHead className="font-bold text-gray-700">Discount</TableHead>
+                <TableHead className="font-bold text-gray-700">GST/TIN No</TableHead>
+                <TableHead className="font-bold text-gray-700">Vehicles</TableHead>
+                <TableHead className="font-bold text-gray-700">Date</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {paginatedEntries.length === 0 ? (
                 <TableRow>
-                  <TableHead className="font-bold text-gray-700">Sl No</TableHead>
-                  <TableHead className="font-bold text-gray-700">Date</TableHead>
-                  <TableHead className="font-bold text-gray-700">Name</TableHead>
-                  <TableHead className="font-bold text-gray-700">Number</TableHead>
-                  <TableHead className="font-bold text-gray-700">Offer Amount</TableHead>
-                  <TableHead className="font-bold text-gray-700">Offer Type</TableHead>
-                  <TableHead className="font-bold text-gray-700">Gst / TIN No</TableHead>
-                  <TableHead className="font-bold text-gray-700">Vehicle Number</TableHead>
-                  <TableHead className="font-bold text-gray-700">User Log Details</TableHead>
-                  <TableHead className="font-bold text-gray-700 text-center">Status</TableHead>
-                  <TableHead className="font-bold text-gray-700 text-center">Action</TableHead>
+                  <TableCell colSpan={9} className="text-center py-8 text-gray-500">
+                    No guest sales found.
+                  </TableCell>
                 </TableRow>
-              </TableHeader>
-              <TableBody>
-                {isLoading ? (
-                  <TableRow>
-                    <TableCell colSpan={11} className="text-center py-8 text-gray-500">
-                      Loading...
-                    </TableCell>
-                  </TableRow>
-                ) : filteredEntries.length === 0 ? (
-                  <TableRow>
-                    <TableCell colSpan={11} className="text-center py-8 text-gray-500">
-                      No data available in table
-                    </TableCell>
-                  </TableRow>
-                ) : (
-                  filteredEntries.map((item, idx) => (
-                    <TableRow key={item.id} className="hover:bg-gray-50">
-                      <TableCell>{idx + 1}</TableCell>
-                      <TableCell>
-                        {item.sale_date
-                          ? new Date(item.sale_date).toLocaleDateString("en-GB")
-                          : "-"}
-                      </TableCell>
-                      <TableCell className="font-medium">{item.customer_name || "-"}</TableCell>
-                      <TableCell>{item.mobile_number || "-"}</TableCell>
-                      <TableCell>{item.discount || "0"}</TableCell>
-                      <TableCell>{item.product_name || "-"}</TableCell>
-                      <TableCell>{item.bill_no || "-"}</TableCell>
-                      <TableCell>{item.vehicle_number || "-"}</TableCell>
-                      <TableCell className="text-xs text-gray-500">
-                        Created: {item.created_by_name || "Super Admin"}{" "}
-                        {item.created_at
-                          ? new Date(item.created_at).toLocaleDateString("en-GB")
-                          : ""}
-                      </TableCell>
-                      <TableCell className="text-center">
-                        <span className="bg-[#10b981] text-white text-xs px-2 py-1 rounded font-bold">
-                          ACTIVATED
+              ) : (
+                paginatedEntries.map((entry, index) => (
+                  <TableRow key={entry._id} className="hover:bg-gray-50">
+                    <TableCell>{index + 1}</TableCell>
+                    <TableCell className="text-center">
+                      <div className="flex flex-col items-center gap-1">
+                        <button
+                          onClick={() => handleStatusToggle(entry._id, entry.status)}
+                          className={`relative inline-flex h-7 w-14 items-center rounded-full transition-colors focus:outline-none ${entry.status === 'active' ? 'bg-blue-600' : 'bg-gray-300'
+                            }`}
+                        >
+                          <span
+                            className={`inline-block h-5 w-5 transform rounded-full bg-white transition-transform ${entry.status === 'active' ? 'translate-x-8' : 'translate-x-1'
+                              }`}
+                          />
+                        </button>
+                        <span className={`text-[10px] font-bold ${entry.status === 'active' ? 'text-green-600' : 'text-gray-500'}`}>
+                          {entry.status.toUpperCase()}
                         </span>
-                      </TableCell>
-                      <TableCell className="text-center">
-                        <div className="flex justify-center gap-2">
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            className="h-8 w-8 text-green-600 hover:text-green-700 hover:bg-green-50"
-                            onClick={() => handleEdit(item)}
-                          >
-                            <Edit className="h-4 w-4" />
-                          </Button>
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            className="h-8 w-8 text-orange-400 hover:text-orange-500 hover:bg-orange-50"
-                            onClick={() => setDeleteId(item.id)}
-                          >
-                            <Trash2 className="h-4 w-4" />
-                          </Button>
-                        </div>
-                      </TableCell>
-                    </TableRow>
-                  ))
-                )}
-              </TableBody>
-            </Table>
-          </div>
-
-          <div className="p-4 border-t text-sm text-gray-500 flex justify-between items-center">
-            <span>
-              Showing 1 to {filteredEntries.length} of {filteredEntries.length} entries
-            </span>
-            <div className="flex gap-1">
-              <Button variant="outline" size="sm" disabled>
-                &larr;
-              </Button>
-              <Button variant="outline" size="sm" className="bg-gray-100">
-                1
-              </Button>
-              <Button variant="outline" size="sm" disabled>
-                &rarr;
-              </Button>
-            </div>
-          </div>
-        </CardContent>
+                      </div>
+                    </TableCell>
+                    <TableCell className="text-center">
+                      <div className="flex justify-center gap-2">
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="h-8 w-8 text-blue-600 hover:text-blue-700 hover:bg-blue-50"
+                          onClick={() => handleEdit(entry)}
+                        >
+                          <Edit className="h-4 w-4" />
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="h-8 w-8 text-red-600 hover:text-red-700 hover:bg-red-50"
+                          onClick={() => handleDelete(entry._id)}
+                        >
+                          <Trash2 className="h-4 w-4" />
+                        </Button>
+                      </div>
+                    </TableCell>
+                    <TableCell className="font-medium text-blue-900">{entry.customerName}</TableCell>
+                    <TableCell>{entry.mobileNumber}</TableCell>
+                    <TableCell>{entry.discount} ({entry.offerType})</TableCell>
+                    <TableCell>{entry.gstNumber || "-"}</TableCell>
+                    <TableCell>
+                      <div className="flex flex-wrap gap-1">
+                        {entry.vehicleNumbers && entry.vehicleNumbers.map((v, i) => (
+                          <span key={i} className="bg-gray-100 px-2 py-0.5 rounded text-xs">{v}</span>
+                        ))}
+                      </div>
+                    </TableCell>
+                    <TableCell>{new Date(entry.saleDate).toLocaleDateString()}</TableCell>
+                  </TableRow>
+                ))
+              )}
+            </TableBody>
+          </Table>
+        </div>
       </Card>
-
-      <AlertDialog open={deleteId !== null} onOpenChange={() => setDeleteId(null)}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>Delete Guest Entry?</AlertDialogTitle>
-            <AlertDialogDescription>
-              This action cannot be undone. This will permanently delete the guest entry.
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel>Cancel</AlertDialogCancel>
-            <AlertDialogAction
-              onClick={() => deleteId && deleteMutation.mutate(deleteId)}
-              className="bg-red-600 hover:bg-red-700"
-            >
-              Delete
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
     </div>
   );
 }

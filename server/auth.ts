@@ -39,6 +39,7 @@ export function verifyToken(token: string): JWTPayload | null {
 export interface AuthRequest extends Request {
   user?: JWTPayload;
   tenantDb?: any; // Will be set by tenant middleware
+  body: any; // Request body
 }
 
 export async function authenticateToken(req: AuthRequest, res: Response, next: NextFunction) {

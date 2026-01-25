@@ -115,6 +115,7 @@ export interface IGuestSale extends Document {
     mobileNumber?: string;
     billNo?: string;
     vehicleNumber?: string;
+    vehicleNumbers?: string[];
     fuelProductId?: string; // Reference to Postgres ID
     pricePerUnit?: number;
     amount?: number;
@@ -125,6 +126,8 @@ export interface IGuestSale extends Document {
     paymentMode?: string;
     employeeId?: string; // Reference to Postgres ID
     gstNumber?: string;
+    offerType?: string;
+    status?: string;
     createdBy?: string;
 }
 
@@ -135,6 +138,7 @@ const GuestSaleSchema = new Schema<IGuestSale>({
     mobileNumber: { type: String },
     billNo: { type: String },
     vehicleNumber: { type: String },
+    vehicleNumbers: [{ type: String }],
     fuelProductId: { type: String },
     pricePerUnit: { type: Number },
     amount: { type: Number },
@@ -145,6 +149,8 @@ const GuestSaleSchema = new Schema<IGuestSale>({
     paymentMode: { type: String },
     employeeId: { type: String },
     gstNumber: { type: String },
+    offerType: { type: String },
+    status: { type: String, default: 'active' },
     createdBy: { type: String },
 }, { timestamps: true });
 
@@ -279,6 +285,7 @@ export interface IExpiryItem extends Document {
     issueDate?: Date;
     expiryDate?: Date;
     status?: string; // 'Active', 'Expired'
+    createdAt: Date;
 }
 
 const ExpiryItemSchema = new Schema<IExpiryItem>({
@@ -336,6 +343,7 @@ export interface ICreditCustomer extends Document {
     balanceType?: string; // New (Due/Excess)
     discountAmount?: number; // New
     offerType?: string; // New
+    image?: string; // New
     vehicles?: { vehicleNo: string; vehicleType: string }[]; // New
     penaltyInterest?: boolean; // New
     runInterest?: boolean; // New
@@ -346,7 +354,7 @@ export interface ICreditCustomer extends Document {
 }
 
 const CreditCustomerSchema = new Schema<ICreditCustomer>({
-    _id: { type: String, required: true }, // Allow string UUIDs
+    _id: { type: String, required: true } as any, // Allow string UUIDs
     organizationName: { type: String, required: true },
     phoneNumber: { type: String },
     mobileNumber: { type: String },
@@ -367,17 +375,14 @@ const CreditCustomerSchema = new Schema<ICreditCustomer>({
     openingDate: { type: Date },
     balanceType: { type: String },
     discountAmount: { type: Number },
-    offerType: { type: String },
-    vehicles: [{
-        vehicleNo: { type: String },
-        vehicleType: { type: String }
-    }],
-    image: { type: String }, // Base64 or URL
-    penaltyInterest: { type: Boolean, default: false },
-    runInterest: { type: Boolean, default: false },
-    graceDays: { type: Number },
-    interestPercentage: { type: Number },
+    vehicles: [{ vehicleNo: String, vehicleType: String }], // New
+    penaltyInterest: { type: Boolean }, // New
+    runInterest: { type: Boolean }, // New
+    graceDays: { type: Number }, // New
+    interestPercentage: { type: Number }, // New
     isActive: { type: Boolean, default: true },
+    offerType: { type: String },
+    image: { type: String }, // Base64 or URL
 }, { timestamps: true });
 
 export const CreditCustomer = mongoose.model<ICreditCustomer>('CreditCustomer', CreditCustomerSchema);
@@ -397,7 +402,7 @@ export interface IFuelProduct extends Document {
 }
 
 const FuelProductSchema = new Schema<IFuelProduct>({
-    _id: { type: String, required: true }, // Allow string UUIDs from Postgres
+    _id: { type: String, required: true } as any, // Allow string UUIDs from Postgres
     productName: { type: String, required: true },
     shortName: { type: String, required: true },
     gstPercentage: { type: Number },
@@ -425,7 +430,7 @@ export interface ILubricantProduct extends Document {
 }
 
 const LubricantProductSchema = new Schema<ILubricantProduct>({
-    _id: { type: String, required: true }, // Allow string UUIDs
+    _id: { type: String, required: true } as any, // Allow string UUIDs
     productName: { type: String, required: true },
     gstPercentage: { type: Number },
     hsnCode: { type: String },
@@ -463,7 +468,7 @@ export interface IEmployee extends Document {
 }
 
 const EmployeeSchema = new Schema<IEmployee>({
-    _id: { type: String, required: true }, // Allow string UUIDs
+    _id: { type: String, required: true } as any, // Allow string UUIDs
     joinDate: { type: Date, required: true },
     employeeName: { type: String, required: true },
     employeeNumber: { type: String },
@@ -497,7 +502,7 @@ export interface IExpenseType extends Document {
 }
 
 const ExpenseTypeSchema = new Schema<IExpenseType>({
-    _id: { type: String, required: true },
+    _id: { type: String, required: true } as any,
     expenseName: { type: String, required: true },
     effectType: { type: String, required: true },
     option: { type: String },
@@ -581,7 +586,7 @@ export interface ITank extends Document {
 }
 
 const TankSchema = new Schema<ITank>({
-    _id: { type: String, required: true }, // Allow string UUIDs
+    _id: { type: String, required: true } as any, // Allow string UUIDs
     tankNumber: { type: String, required: true },
     fuelProductId: { type: String, required: true },
     capacity: { type: Number, default: 0 },
@@ -604,7 +609,7 @@ export interface INozzle extends Document {
 }
 
 const NozzleSchema = new Schema<INozzle>({
-    _id: { type: String, required: true }, // Allow string UUIDs
+    _id: { type: String, required: true } as any, // Allow string UUIDs
     nozzleNumber: { type: String, required: true },
     pumpStation: { type: String },
     tankId: { type: String },
@@ -649,7 +654,7 @@ export interface IDutyShift extends Document {
 }
 
 const DutyShiftSchema = new Schema<IDutyShift>({
-    _id: { type: String, required: true },
+    _id: { type: String, required: true } as any,
     shiftName: { type: String, required: true },
     startTime: { type: String },
     endTime: { type: String },
@@ -731,3 +736,67 @@ const TankDailyReadingSchema = new Schema<ITankDailyReading>({
 TankDailyReadingSchema.index({ readingDate: 1, tankId: 1 }, { unique: true });
 
 export const TankDailyReading = mongoose.model<ITankDailyReading>('TankDailyReading', TankDailyReadingSchema);
+
+// ==========================================
+// 3.23 Swipe Transactions (MongoDB)
+// ==========================================
+export interface ISwipeTransaction extends Document {
+    transactionDate: Date;
+    employeeId: string; // Reference to Employee
+    swipeType: string;
+    swipeMode: string;
+    batchNumber?: string;
+    amount: number;
+    shift?: string;
+    note?: string;
+    imageUrl?: string;
+    createdBy?: string;
+    createdAt: Date;
+}
+
+const SwipeTransactionSchema = new Schema<ISwipeTransaction>({
+    transactionDate: { type: Date, default: Date.now },
+    employeeId: { type: String, required: true },
+    swipeType: { type: String },
+    swipeMode: { type: String },
+    batchNumber: { type: String },
+    amount: { type: Number, required: true },
+    shift: { type: String },
+    note: { type: String },
+    imageUrl: { type: String },
+    createdBy: { type: String },
+}, { timestamps: true });
+
+export const SwipeTransaction = mongoose.model<ISwipeTransaction>('SwipeTransaction', SwipeTransactionSchema);
+
+// ==========================================
+// 3.24 Swipe Machines (MongoDB)
+// ==========================================
+export interface ISwipeMachine extends Document {
+    machineName: string;
+    machineType: string;
+    provider: string;
+    machineId?: string;
+    status: string;
+    attachType?: string;
+    bankType?: string;
+    vendorId?: string;
+    createdBy?: string;
+    createdAt: Date;
+}
+
+const SwipeMachineSchema = new Schema<ISwipeMachine>({
+    _id: { type: String, required: true } as any, // Allow string UUIDs
+    machineName: { type: String, required: true },
+    machineType: { type: String, required: true },
+    provider: { type: String, required: true },
+    machineId: { type: String },
+    status: { type: String, default: 'Active' },
+    attachType: { type: String },
+    bankType: { type: String },
+    vendorId: { type: String },
+    createdBy: { type: String },
+}, { timestamps: true });
+
+export const SwipeMachine = mongoose.model<ISwipeMachine>('SwipeMachine', SwipeMachineSchema);
+

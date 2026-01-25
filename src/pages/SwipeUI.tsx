@@ -1,291 +1,430 @@
-import { useEffect, useState } from "react";
+import { useState, useEffect, useRef } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
-import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { Plus, Search, Trash2, Edit } from "lucide-react";
+import { Label } from "@/components/ui/label";
 
 export default function SwipeUI() {
   const { toast } = useToast();
   const queryClient = useQueryClient();
-  const [date, setDate] = useState<string>(new Date().toISOString().slice(0, 10));
+
+  // State for form fields
+  const [saleDate, setSaleDate] = useState<string>(new Date().toISOString().slice(0, 10));
   const [shift, setShift] = useState<"S-1" | "S-2">("S-1");
-  const [employee, setEmployee] = useState("");
-  const [swipeType, setSwipeType] = useState("");
-  const [swipeMode, setSwipeMode] = useState("");
-  const [batchNo, setBatchNo] = useState<string>("0");
+  const [totalValue, setTotalValue] = useState<string>("");
+
+  // Auto-fill
+  const [autoFillEmployee, setAutoFillEmployee] = useState<string>("");
+  const [autoFillSwipeType, setAutoFillSwipeType] = useState<string>("");
+
+  // Single Entry Row
+  const [employee, setEmployee] = useState<string>("");
+  const [swipeMode, setSwipeMode] = useState<string>("");
+  const [batchNo, setBatchNo] = useState<string>("");
   const [amount, setAmount] = useState<string>("");
   const [note, setNote] = useState<string>("");
-  const [editingId, setEditingId] = useState<string | null>(null);
+  const [uploadedFile, setUploadedFile] = useState<string | null>(null);
 
-  // Fetch swipe transactions data
-  const { data: swipeTransactionsData, refetch: refetchSwipeTransactions } = useQuery({
-    queryKey: ["/api/swipe-sales"],
-    queryFn: async () => {
-      const response = await fetch('/api/swipe-sales');
-      const result = await response.json();
-      if (!result.ok) throw new Error(result.error || 'Failed to fetch swipe sales');
-      return result.rows || [];
-    },
-  });
+  // Filters
+  const [searchFrom, setSearchFrom] = useState<string>("");
+  const [searchTo, setSearchTo] = useState<string>("");
+  const [filterSwipeMode, setFilterSwipeMode] = useState<string>("all");
+  const [searchText, setSearchText] = useState<string>("");
 
-  // Fetch employees for dropdown (use UUID ids so saves succeed)
-  const { data: employees } = useQuery({
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  // Fetch employees
+  const { data: employeesData } = useQuery({
     queryKey: ["/api/employees"],
     queryFn: async () => {
-      const res = await fetch('/api/employees');
-      const json = await res.json();
-      if (!json.ok) throw new Error(json.error || 'Failed to fetch employees');
-      return json.rows || [];
-    }
-  });
-
-  // Load swipe modes/types for auto-fill from API (fallback to defaults)
-  const { data: swipeModes } = useQuery({
-    queryKey: ["/api/swipe-modes"],
-    queryFn: async () => {
-      const res = await fetch('/api/swipe-modes');
-      const json = await res.json();
-      return json.rows || [];
-    }
-  });
-  const { data: swipeTypes } = useQuery({
-    queryKey: ["/api/swipe-types"],
-    queryFn: async () => {
-      const res = await fetch('/api/swipe-types');
-      const json = await res.json();
-      return json.rows || [];
-    }
-  });
-
-  const rows = swipeTransactionsData || [];
-
-  const onConfirm = async () => {
-    if (!employee || !swipeType || !amount) {
-      toast({ title: "Missing fields", variant: "destructive" });
-      return;
-    }
-
-    try {
-      const isEdit = !!editingId;
-      const url = isEdit ? `/api/swipe-sales/${editingId}` : '/api/swipe-sales';
-      const method = isEdit ? 'PUT' : 'POST';
-      const response = await fetch(url, {
-        method,
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          transaction_date: date,
-          sale_date: date,
-          shift,
-          employee_id: employee || null,
-          swipe_type: swipeType,
-          swipe_mode: swipeMode || null,
-          batch_number: batchNo || null,
-          amount: amount ? Number(amount) : null,
-          note,
-        })
-      });
-
+      const response = await fetch('/api/employees', { credentials: 'include' });
       const result = await response.json();
-      if (!result.ok) {
-        toast({ title: "Save failed", description: result.error, variant: "destructive" });
-        return;
-      }
+      if (!result.ok) throw new Error(result.error || 'Failed to fetch employees');
+      return result.rows || [];
+    }
+  });
 
-      toast({ title: isEdit ? "Updated successfully" : "Saved successfully" });
-      setBatchNo("0");
-      setAmount("");
-      setNote("");
-      setEditingId(null);
-      refetchSwipeTransactions(); // Refresh the table data
-    } catch (error) {
-      toast({ title: "Error", description: String(error), variant: "destructive" });
+  // Fetch swipe machines
+  const { data: swipeMachinesData } = useQuery({
+    queryKey: ["/api/swipe-machines"],
+    queryFn: async () => {
+      const response = await fetch('/api/swipe-machines', { credentials: 'include' });
+      const result = await response.json();
+      if (!result.ok) throw new Error(result.error || 'Failed to fetch swipe machines');
+      return result.rows || [];
+    }
+  });
+
+  // Fetch swipe transactions
+  // Use /api/swipe-transactions (MongoDB backend) instead of /api/swipe-sales which might be the old postgres one or non-existent
+  const { data: swipeTransactionsData, refetch } = useQuery({
+    queryKey: ["/api/swipe-transactions", searchFrom, searchTo, filterSwipeMode],
+    queryFn: async () => {
+      let url = `/api/swipe-transactions?mode=${filterSwipeMode}`;
+      if (searchFrom) url += `&from=${searchFrom}`;
+      if (searchTo) url += `&to=${searchTo}`;
+
+      const response = await fetch(url, { credentials: 'include' });
+      const result = await response.json();
+      if (!result.ok) throw new Error(result.error || 'Failed to fetch swipe transactions');
+      return result.rows || [];
+    }
+  });
+
+  const swipeTransactionsRows = swipeTransactionsData || [];
+  const employees = employeesData || [];
+  const swipeMachines = swipeMachinesData || [];
+
+  // Auto-fill logic
+  useEffect(() => {
+    if (autoFillEmployee) {
+      setEmployee(autoFillEmployee);
+    }
+  }, [autoFillEmployee]);
+
+  useEffect(() => {
+    if (autoFillSwipeType) {
+      setSwipeMode(autoFillSwipeType);
+    }
+  }, [autoFillSwipeType]);
+
+  // Total Value Sync
+  useEffect(() => {
+    const val = parseFloat(amount);
+    setTotalValue(isNaN(val) ? "" : val.toFixed(2));
+  }, [amount]);
+
+  const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        setUploadedFile(reader.result as string);
+        toast({ title: "File uploaded successfully" });
+      };
+      reader.readAsDataURL(file);
     }
   };
 
-  return (
-    <div className="p-6 space-y-6">
-      <div className="flex items-center gap-2 text-sm"><span className="font-semibold">Dashboard</span><span>/</span><span>Swipe</span></div>
+  const createSwipeTransaction = useMutation({
+    mutationFn: async () => {
+      const payload = {
+        employee_id: employee,
+        swipe_type: autoFillSwipeType || "Card",
+        swipe_mode: swipeMode,
+        batch_number: batchNo || "0",
+        amount: parseFloat(amount),
+        transaction_date: saleDate,
+        shift: shift,
+        note: note,
+        image_url: uploadedFile
+      };
 
-      <Card className="bg-gradient-to-r from-blue-600 to-blue-700 text-white">
-        <CardHeader>
-          <CardTitle className="text-white">Swipe</CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          {/* Top row */}
-          <div className="grid grid-cols-12 gap-3 items-center">
-            <div className="col-span-2 flex items-center gap-3">
-              <span className="text-white font-medium">Choose Date</span>
-              <button
-                type="button"
-                className="h-10 px-4 rounded-md bg-white text-black font-medium hover:bg-gray-100"
-                onClick={() => document.getElementById('sw_date')?.showPicker()}
-              >
-                {date || 'Date'}
-              </button>
-              <input
-                id="sw_date"
+      const response = await fetch('/api/swipe-transactions', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify(payload)
+      });
+      const result = await response.json();
+      if (!result.ok) throw new Error(result.error || 'Failed to save');
+      return result;
+    },
+    onSuccess: () => {
+      toast({ title: "Saved successfully", className: "bg-green-500 text-white" });
+      if (!autoFillEmployee) setEmployee("");
+      // Keep swipe mode if needed or reset? Resetting for fresh entry
+      if (!autoFillSwipeType) setSwipeMode("");
+      setBatchNo("");
+      setAmount("");
+      setNote("");
+      setUploadedFile(null);
+      refetch();
+    },
+    onError: (e: any) => {
+      toast({ title: "Error", description: e.message, variant: "destructive" });
+    }
+  });
+
+  const handleConfirm = () => {
+    if (!employee || !amount || !swipeMode) {
+      toast({ title: "Validation Error", description: "Please fill Employee, Swipe Mode and Amount", variant: "destructive" });
+      return;
+    }
+    createSwipeTransaction.mutate();
+  };
+
+  // Filter local rows by text search
+  const filteredRows = swipeTransactionsRows.filter((r: any) => {
+    if (!searchText) return true;
+    const s = searchText.toLowerCase();
+    return (
+      (r.employee_name && r.employee_name.toLowerCase().includes(s)) ||
+      (r.swipe_mode && r.swipe_mode.toLowerCase().includes(s)) ||
+      (r.amount && String(r.amount).includes(s))
+    );
+  });
+
+  return (
+    <div className="p-4 space-y-6">
+      <div className="flex items-center gap-2 text-sm text-gray-500">
+        <span className="font-semibold text-gray-700">Dashboard</span>
+        <span>{'>'}</span>
+        <span>Swipe</span>
+      </div>
+
+      {/* Main Card */}
+      <Card className="border-none shadow-md overflow-hidden bg-blue-600">
+        <div className="p-4">
+          <h2 className="text-white text-xl font-semibold mb-6">Swipe</h2>
+
+          {/* Top Row: Date, Shift, Total Value */}
+          <div className="flex flex-wrap gap-4 items-center mb-6">
+            <div className="flex items-center">
+              <div className="bg-[#fbbf24] text-black font-medium px-4 py-2 rounded-l-md text-sm whitespace-nowrap">
+                Choose Date
+              </div>
+              <Input
                 type="date"
-                value={date}
-                onChange={(e) => setDate(e.target.value)}
-                className="hidden"
+                className="rounded-l-none rounded-r-md border-none h-[36px] w-[180px]"
+                value={saleDate}
+                onChange={(e) => setSaleDate(e.target.value)}
               />
             </div>
-            <div className="h-10 col-span-3 px-3 flex items-center rounded-md bg-white text-black">Date</div>
-            <div className="col-span-4">
-              <div className="flex items-center gap-6 rounded-md border border-white/50 px-4 py-2">
-                <label className="flex items-center gap-2"><input type="radio" name="shift" checked={shift === 'S-1'} onChange={() => setShift('S-1')} /> S-1</label>
-                <label className="flex items-center gap-2"><input type="radio" name="shift" checked={shift === 'S-2'} onChange={() => setShift('S-2')} /> S-2</label>
+
+            <div className="flex-1 bg-white/20 rounded-md p-2 flex items-center justify-center gap-6 border border-white/30 text-white min-w-[200px]">
+              <label className="flex items-center gap-2 cursor-pointer">
+                <input type="radio" name="shift" checked={shift === 'S-1'} onChange={() => setShift('S-1')} className="accent-white w-4 h-4" />
+                <span className="font-medium">S-1</span>
+              </label>
+              <label className="flex items-center gap-2 cursor-pointer">
+                <input type="radio" name="shift" checked={shift === 'S-2'} onChange={() => setShift('S-2')} className="accent-white w-4 h-4" />
+                <span className="font-medium">S-2</span>
+              </label>
+            </div>
+
+            <div className="bg-white rounded-md h-[36px] w-[200px] flex items-center px-3 text-gray-700">
+              {totalValue || "0"}
+            </div>
+          </div>
+
+          {/* Auto Fill Container */}
+          <div className="border border-white/30 rounded-lg p-4 mb-4 relative">
+            <span className="absolute -top-3 left-4 bg-blue-600 px-2 text-white text-sm font-medium">AUTO-FILL</span>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              <div className="space-y-1">
+                <Label className="text-white text-xs">Employee</Label>
+                <Select value={autoFillEmployee} onValueChange={setAutoFillEmployee}>
+                  <SelectTrigger className="bg-white text-gray-700 border-none h-9">
+                    <SelectValue placeholder="choose Employee" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {employees.map((e: any) => (
+                      <SelectItem key={e.id} value={e.id}>{e.employee_name}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-1">
+                <Label className="text-white text-xs">Swipe Type</Label>
+                <Select value={autoFillSwipeType} onValueChange={setAutoFillSwipeType}>
+                  <SelectTrigger className="bg-white text-gray-700 border-none h-9">
+                    <SelectValue placeholder="Choose Swipe" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="Card">Card</SelectItem>
+                    <SelectItem value="UPI">UPI</SelectItem>
+                    <SelectItem value="QR">QR</SelectItem>
+                  </SelectContent>
+                </Select>
               </div>
             </div>
-            <div className="h-10 col-span-3 px-3 flex items-center rounded-md bg-white text-black">Total Value</div>
           </div>
 
-          {/* Auto-fill */}
-          <div className="rounded-lg border border-white/40 bg-white/10 p-4">
-            <div className="text-sm opacity-90 mb-3">AUTO-FILL</div>
-            <div className="grid grid-cols-2 gap-4">
+          {/* Entry Row */}
+          <div className="grid grid-cols-12 gap-2 items-end mb-8">
+            <div className="col-span-12 md:col-span-2">
+              <Label className="text-white text-xs mb-1 block">Employee</Label>
               <Select value={employee} onValueChange={setEmployee}>
-                <SelectTrigger className="bg-white text-black"><SelectValue placeholder="choose Employee" /></SelectTrigger>
+                <SelectTrigger className="bg-white text-gray-700 border-none h-9">
+                  <SelectValue placeholder="Employee" />
+                </SelectTrigger>
                 <SelectContent>
-                  {(employees || []).map((e: any) => (
-                    <SelectItem key={e.id} value={e.id}>{e.employee_name}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-              <Select value={swipeType} onValueChange={setSwipeType}>
-                <SelectTrigger className="bg-white text-black"><SelectValue placeholder="Choose Swipe" /></SelectTrigger>
-                <SelectContent>
-                  {(swipeTypes && swipeTypes.length ? swipeTypes : ["account pay", "BANK", "CCMS", "ICICI CARD", "ICICI SCAN", "ICICI SWIPE", "phone pe"]).map((t: string) => (
-                    <SelectItem key={t} value={t}>{t}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-          </div>
-
-          {/* Entry row */}
-          <div className="grid grid-cols-12 gap-3 items-center">
-            <div className="col-span-3">
-              <Select value={employee} onValueChange={setEmployee}>
-                <SelectTrigger className="bg-white text-black"><SelectValue placeholder="Employee" /></SelectTrigger>
-                <SelectContent>
-                  {(employees || []).map((e: any) => (
+                  {employees.map((e: any) => (
                     <SelectItem key={e.id} value={e.id}>{e.employee_name}</SelectItem>
                   ))}
                 </SelectContent>
               </Select>
             </div>
-            <div className="col-span-2">
+            <div className="col-span-12 md:col-span-2">
+              <Label className="text-white text-xs mb-1 block">Swipe Mode</Label>
               <Select value={swipeMode} onValueChange={setSwipeMode}>
-                <SelectTrigger className="bg-white text-black"><SelectValue placeholder="Swipe Mode" /></SelectTrigger>
+                <SelectTrigger className="bg-white text-gray-700 border-none h-9">
+                  <SelectValue placeholder="Swipe Mode" />
+                </SelectTrigger>
                 <SelectContent>
-                  {(swipeModes && swipeModes.length ? swipeModes : ["account pay", "BANK", "CCMS", "ICICI CARD", "ICICI SCAN", "ICICI SWIPE", "phone pe"]).map((m: string) => (
-                    <SelectItem key={m} value={m}>{m}</SelectItem>
+                  {swipeMachines.map((m: any) => (
+                    <SelectItem key={m.machine_name} value={m.machine_name}>{m.machine_name}</SelectItem>
                   ))}
                 </SelectContent>
               </Select>
             </div>
-            <Input className="bg-white text-black col-span-2" placeholder="0" value={batchNo} onChange={(e) => setBatchNo(e.target.value)} />
-            <Input className="bg-white text-black col-span-2" placeholder="Amount" value={amount} onChange={(e) => setAmount(e.target.value)} />
-            <div className="col-span-3 flex items-center gap-2">
-              <span>Note</span>
-              <Button size="sm" variant="secondary" className="text-black">UPLOAD</Button>
-              <Input className="bg-white text-black flex-1" placeholder="Note" value={note} onChange={(e) => setNote(e.target.value)} />
-              <Button size="sm" variant="secondary" className="text-black">+</Button>
+            <div className="col-span-6 md:col-span-1">
+              <Label className="text-white text-xs mb-1 block">Batch No</Label>
+              <Input className="h-9 bg-white border-none text-gray-700" placeholder="0" value={batchNo} onChange={e => setBatchNo(e.target.value)} />
+            </div>
+            <div className="col-span-6 md:col-span-2">
+              <Label className="text-white text-xs mb-1 block">Amount</Label>
+              <Input className="h-9 bg-white border-none text-gray-700" placeholder="Amount" type="number" value={amount} onChange={e => setAmount(e.target.value)} />
+            </div>
+            <div className="col-span-12 md:col-span-4 relative">
+              <div className="flex justify-between items-center mb-1">
+                <Label className="text-white text-xs">Note</Label>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="bg-orange-500 hover:bg-orange-600 text-white h-5 text-[10px] px-2 rounded-sm"
+                  onClick={() => fileInputRef.current?.click()}
+                >
+                  UPLOAD
+                </Button>
+                <input type="file" ref={fileInputRef} className="hidden" accept=".pdf,.jpg,.jpeg,.png" onChange={handleFileUpload} />
+              </div>
+              <Input className="h-9 bg-white border-none text-gray-700" placeholder="Note" value={note} onChange={e => setNote(e.target.value)} />
+            </div>
+            <div className="col-span-12 md:col-span-1 flex justify-center pb-1">
+              <Button size="icon" className="bg-transparent border border-white text-white hover:bg-white/20 rounded-full h-8 w-8">
+                <Plus className="h-5 w-5" />
+              </Button>
             </div>
           </div>
 
+          {/* Confirm Button */}
           <div className="flex justify-center">
-            <Button onClick={onConfirm} className="rounded-full bg-orange-500 hover:bg-orange-600 text-white px-8">{editingId ? 'SAVE' : 'CONFIRM'}</Button>
+            <Button
+              className="bg-[#84cc16] hover:bg-[#65a30d] text-white font-bold px-12 rounded-full shadow-lg"
+              onClick={handleConfirm}
+              disabled={createSwipeTransaction.isPending}
+            >
+              {createSwipeTransaction.isPending ? "SAVING..." : "CONFIRM"}
+            </Button>
           </div>
-        </CardContent>
+        </div>
       </Card>
 
-      {/* Filters */}
-      <Card>
-        <CardContent className="space-y-3 pt-6">
-          <div className="grid grid-cols-6 gap-4">
-            <div className="flex items-center gap-2"><span>Search From</span><Input type="date" className="w-44" placeholder="Filter Date" /></div>
-            <div className="flex items-center gap-2"><span>To</span><Input type="date" className="w-44" placeholder="Filter Date" /></div>
-            <div className="flex items-center gap-2"><span>Swipe Mode</span>
-              <Select>
-                <SelectTrigger className="w-56"><SelectValue placeholder="Choose Swipe" /></SelectTrigger>
-                <SelectContent>
-                  {(swipeModes && swipeModes.length ? swipeModes : ["account pay", "BANK", "CCMS", "ICICI CARD", "ICICI SCAN", "ICICI SWIPE", "phone pe"]).map((m: string) => (
-                    <SelectItem key={m} value={m}>{m}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-            <div className="flex items-center gap-2 col-span-2" />
-            <div className="flex items-center gap-2"><Button className="bg-orange-500 hover:bg-orange-600">Search</Button></div>
+      {/* Filter Bar */}
+      <div className="bg-white rounded-lg p-4 shadow-sm flex flex-wrap gap-4 items-center justify-between">
+        <div className="flex items-center gap-4 flex-wrap">
+          <div className="flex items-center gap-2">
+            <span className="text-sm font-medium text-gray-600">Search From</span>
+            <Input type="date" className="w-[150px] h-9" value={searchFrom} onChange={e => setSearchFrom(e.target.value)} />
           </div>
-        </CardContent>
-      </Card>
+          <div className="flex items-center gap-2">
+            <span className="text-sm font-medium text-gray-600">To</span>
+            <Input type="date" className="w-[150px] h-9" value={searchTo} onChange={e => setSearchTo(e.target.value)} />
+          </div>
+          <div className="flex items-center gap-2">
+            <span className="text-sm font-medium text-gray-600">Swipe Mode</span>
+            <Select value={filterSwipeMode} onValueChange={setFilterSwipeMode}>
+              <SelectTrigger className="w-[160px] h-9">
+                <SelectValue placeholder="Choose Swipe" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All</SelectItem>
+                {swipeMachines.map((m: any) => (
+                  <SelectItem key={m.machine_name} value={m.machine_name}>{m.machine_name}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+          <Button className="bg-orange-500 hover:bg-orange-600 text-white h-9 px-6">
+            <Search className="h-4 w-4 mr-2" /> Search
+          </Button>
+        </div>
+      </div>
 
-      {/* Actions + Table */}
-      <Card>
-        <CardContent className="pt-6">
-          <div className="flex items-center justify-between mb-4">
-            <Button variant="destructive">Delete</Button>
-            <div className="flex items-center gap-2"><Button variant="outline" size="sm">Copy</Button><Button variant="outline" size="sm" className="border-green-500 text-green-600">CSV</Button><Button variant="outline" size="sm" className="border-red-500 text-red-600">PDF</Button><Button variant="outline" size="sm">Print</Button><div className="flex items-center gap-2 ml-4"><span>Filter:</span><Input placeholder="Type to filter..." className="w-56" /></div></div>
+      {/* Controls & Table */}
+      <div className="bg-white rounded-lg p-4 shadow-sm space-y-4">
+        <div className="flex justify-between items-center">
+          <Button variant="outline" className="text-red-500 border-red-200 bg-red-50 hover:bg-red-100 gap-2">
+            <Trash2 className="h-4 w-4" /> Delete
+          </Button>
+
+          <div className="flex items-center gap-2">
+            <span className="text-sm text-gray-500">Filter:</span>
+            <Input
+              placeholder="Type to filter..."
+              className="h-9 w-[200px]"
+              value={searchText}
+              onChange={e => setSearchText(e.target.value)}
+            />
           </div>
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>S.No</TableHead>
-                <TableHead>Date</TableHead>
-                <TableHead>Employee</TableHead>
-                <TableHead>Shift</TableHead>
-                <TableHead>Swipe</TableHead>
-                <TableHead>Amount</TableHead>
-                <TableHead>Batch No</TableHead>
-                <TableHead>Action</TableHead>
-                <TableHead>Description</TableHead>
-                <TableHead>Picture</TableHead>
-                <TableHead>User Log Details</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {rows.map((r: any, idx: number) => (
-                <TableRow key={r.id || idx}>
-                  <TableCell>{idx + 1}</TableCell>
-                  <TableCell>{r.transaction_date ? new Date(r.transaction_date).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }).replace(/ /g, '-') : '-'}</TableCell>
-                  <TableCell>{r.employee_name || '-'}</TableCell>
-                  <TableCell>{r.shift || '-'}</TableCell>
-                  <TableCell>{r.swipe_mode || '-'}</TableCell>
-                  <TableCell>{Number(r.amount || 0).toLocaleString('en-IN', { minimumFractionDigits: 2 })}</TableCell>
-                  <TableCell>{r.batch_number || '-'}</TableCell>
-                  <TableCell>
-                    <div className="flex gap-4 items-center justify-center">
-                      <a
-                        href={`#edit-${r.id}`}
-                        onClick={(e) => { e.preventDefault(); setEditingId(r.id); setDate(r.transaction_date ? r.transaction_date.slice(0, 10) : new Date().toISOString().slice(0, 10)); setShift((r.shift === 'S-2' ? 'S-2' : 'S-1') as any); setEmployee(r.employee_id || ''); setSwipeType(r.swipe_type || ''); setSwipeMode(r.swipe_mode || ''); setBatchNo(r.batch_number || '0'); setAmount(String(r.amount || '')); setNote(r.note || r.notes || ''); }}
-                        className="p-2 rounded hover:bg-gray-100 w-10 h-10 flex items-center justify-center"
-                      >
-                        <img src="https://ramkrishna.ymtsindia.in/assets/images/edit.png" alt="Edit" width={36} height={36} />
-                      </a>
-                      <a
-                        href={`#delete-${r.id}`}
-                        onClick={async (e) => { e.preventDefault(); if (!confirm('Delete this entry?')) return; await fetch(`/api/swipe-sales/${r.id}`, { method: 'DELETE' }); await refetchSwipeTransactions(); }}
-                        className="p-2 rounded hover:bg-gray-100 w-10 h-10 flex items-center justify-center"
-                      >
-                        <img src="https://ramkrishna.ymtsindia.in/assets/images/delete.png" alt="Delete" width={36} height={36} />
-                      </a>
-                    </div>
-                  </TableCell>
-                  <TableCell>{r.note || r.notes || r.description || "-"}</TableCell>
-                  <TableCell>-</TableCell>
-                  <TableCell>{r.created_at ? new Date(r.created_at).toLocaleString('en-IN') : '-'}</TableCell>
-                </TableRow>
-              ))}
-            </TableBody>
-          </Table>
-        </CardContent>
-      </Card>
+        </div>
+
+        <div className="overflow-x-auto">
+          <table className="w-full text-sm">
+            <thead className="bg-gray-50 border-b">
+              <tr>
+                <th className="px-4 py-3 text-left w-10"><input type="checkbox" /></th>
+                <th className="px-4 py-3 text-left font-semibold text-gray-700">S.No</th>
+                <th className="px-4 py-3 text-left font-semibold text-gray-700">Date</th>
+                <th className="px-4 py-3 text-left font-semibold text-gray-700">Employee</th>
+                <th className="px-4 py-3 text-left font-semibold text-gray-700">Shift</th>
+                <th className="px-4 py-3 text-left font-semibold text-gray-700">Swipe</th>
+                <th className="px-4 py-3 text-left font-semibold text-gray-700">Amount</th>
+                <th className="px-4 py-3 text-left font-semibold text-gray-700">Batch No</th>
+                <th className="px-4 py-3 text-left font-semibold text-gray-700">Action</th>
+                <th className="px-4 py-3 text-left font-semibold text-gray-700">Description</th>
+                <th className="px-4 py-3 text-left font-semibold text-gray-700">Picture</th>
+                <th className="px-4 py-3 text-left font-semibold text-gray-700">User Log Details</th>
+              </tr>
+            </thead>
+            <tbody>
+              {filteredRows.length === 0 ? (
+                <tr><td colSpan={12} className="text-center py-8 text-gray-500">No records found</td></tr>
+              ) : (
+                filteredRows.map((row: any, i: number) => (
+                  <tr key={row.id} className="border-b hover:bg-gray-50">
+                    <td className="px-4 py-3"><input type="checkbox" /></td>
+                    <td className="px-4 py-3">{i + 1}</td>
+                    <td className="px-4 py-3 whitespace-nowrap">
+                      {new Date(row.transaction_date).toLocaleDateString("en-GB", {
+                        day: '2-digit', month: 'short', year: 'numeric'
+                      }).replace(/ /g, '-')}
+                    </td>
+                    <td className="px-4 py-3">
+                      {employees.find((e: any) => e.id === row.employee_id)?.employee_name || row.employee_name || '-'}
+                    </td>
+                    <td className="px-4 py-3">{row.shift || 'S-1'}</td>
+                    <td className="px-4 py-3">{row.swipe_mode}</td>
+                    <td className="px-4 py-3 font-medium">{Number(row.amount).toLocaleString('en-IN', { minimumFractionDigits: 2 })}</td>
+                    <td className="px-4 py-3">{row.batch_number}</td>
+                    <td className="px-4 py-3">
+                      <div className="flex gap-2">
+                        <button className="text-blue-500 hover:text-blue-700"><Edit className="h-4 w-4" /></button>
+                        <button className="text-red-500 hover:text-red-700"><Trash2 className="h-4 w-4" /></button>
+                      </div>
+                    </td>
+                    <td className="px-4 py-3">{row.note || '-'}</td>
+                    <td className="px-4 py-3">
+                      {row.image_url ? (
+                        <a href={row.image_url} target="_blank" rel="noreferrer" className="text-blue-500 underline text-xs">View</a>
+                      ) : '-'}
+                    </td>
+                    <td className="px-4 py-3 text-xs text-gray-500">
+                      Created: Super Admin {new Date(row.created_at).toLocaleString()}
+                    </td>
+                  </tr>
+                ))
+              )}
+            </tbody>
+          </table>
+        </div>
+      </div>
     </div>
   );
 }

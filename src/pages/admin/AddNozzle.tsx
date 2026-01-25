@@ -37,7 +37,7 @@ export default function AddNozzle() {
   const fetchTankDetails = useCallback(async () => {
     if (!tankId) return;
     try {
-      const response = await fetch(`/api/tanks-list/${tankId}`, {
+      const response = await fetch(`/api/tanks/${tankId}`, {
         credentials: 'include'
       });
       const result = await response.json();
@@ -181,7 +181,7 @@ export default function AddNozzle() {
             {newNozzles.map((row, i) => (
               <div key={i} className="flex items-center gap-4">
                 <Input
-                  placeholder="Nozzle Number*"
+                  placeholder="Nozzle*"
                   value={row.nozzle_number}
                   onChange={(e) => updateNewNozzleRow(i, { nozzle_number: e.target.value })}
                   data-testid={`input-nozzle-number-${i}`}
@@ -223,29 +223,22 @@ export default function AddNozzle() {
                   <SelectContent>
                     <SelectItem value="all">All</SelectItem>
                     <SelectItem value="10">10</SelectItem>
-                    <SelectItem value="25">25</SelectItem>
                     <SelectItem value="50">50</SelectItem>
+                    <SelectItem value="100">100</SelectItem>
+                    <SelectItem value="500">500</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
             </div>
             <div className="flex items-center gap-2">
-              <Button variant="outline" size="sm" className="bg-blue-500 text-white hover:bg-blue-600">
-                CSV
-              </Button>
-              <Button variant="outline" size="sm" className="bg-orange-500 text-white hover:bg-orange-600">
-                PDF
-              </Button>
-              <div className="flex items-center gap-2">
-                <span>Filter:</span>
-                <Input
-                  placeholder="Type to filter..."
-                  className="w-56 text-black bg-white"
-                  value={search}
-                  onChange={(e) => setSearch(e.target.value)}
-                  data-testid="input-search"
-                />
-              </div>
+              <span>Filter:</span>
+              <Input
+                placeholder="Type to filter..."
+                className="w-56 text-black bg-white"
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                data-testid="input-search"
+              />
             </div>
           </div>
           <Table>
@@ -275,9 +268,9 @@ export default function AddNozzle() {
                       </Button>
                     </TableCell>
                     <TableCell>
-                      <Button variant="outline" size="sm" className="bg-blue-500 text-white hover:bg-blue-600">
-                        Activated
-                      </Button>
+                      <span className="bg-[#10b981] text-white text-xs px-3 py-1 rounded font-bold">
+                        ACTIVATED
+                      </span>
                     </TableCell>
                   </TableRow>
                 ))

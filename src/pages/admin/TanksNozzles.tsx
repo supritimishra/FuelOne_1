@@ -32,6 +32,8 @@ export default function TanksNozzles() {
   const [editingTankId, setEditingTankId] = useState<string | null>(null);
   const [deleteConfirm, setDeleteConfirm] = useState<string | null>(null);
   const [searchTerm, setSearchTerm] = useState("");
+  const [itemsPerPage, setItemsPerPage] = useState<number | 'all'>('all');
+  const [currentPage, setCurrentPage] = useState(1);
 
   const [tankData, setTankData] = useState({
     tank_name: "",
@@ -129,15 +131,34 @@ export default function TanksNozzles() {
     (tank.tank_name || tank.tank_number).toLowerCase().includes(searchTerm.toLowerCase())
   );
 
+  const totalItems = filteredTanks.length;
+  const totalPages = itemsPerPage === 'all' ? 1 : Math.ceil(totalItems / itemsPerPage);
+  const startIndex = itemsPerPage === 'all' ? 0 : (currentPage - 1) * itemsPerPage;
+  const endIndex = itemsPerPage === 'all' ? totalItems : startIndex + itemsPerPage;
+  const paginatedTanks = itemsPerPage === 'all' ? filteredTanks : filteredTanks.slice(startIndex, endIndex);
+
+  const handleStatusToggle = async (tankId: string, currentStatus: string) => {
+    try {
+      const newStatus = currentStatus === 'Active' ? 'Inactive' : 'Active';
+      const response = await fetch(`/api/tanks-list/${tankId}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({ status: newStatus })
+      });
+      const result = await response.json();
+      if (result.ok) {
+        toast({ title: "Success", description: `Tank ${newStatus.toLowerCase()}` });
+        fetchTanks();
+      }
+    } catch (error) {
+      toast({ variant: "destructive", title: "Error", description: "Failed to update status" });
+    }
+  };
+
   return (
     <div className="space-y-6">
-      <Tabs defaultValue="tanks">
-        <TabsList className="bg-white border">
-          <TabsTrigger value="tanks" data-testid="tab-tanks" className="data-[state=active]:bg-blue-600 data-[state=active]:text-white">Tanks</TabsTrigger>
-        </TabsList>
-
-        <TabsContent value="tanks" className="space-y-6 mt-6">
-          <Card className="border-t-4 border-t-blue-600 shadow-md">
+      <Card className="border-t-4 border-t-blue-600 shadow-md">
             <CardHeader className="bg-blue-600 text-white py-3">
               <CardTitle className="text-lg font-medium">{editingTankId ? 'Edit Tank' : 'Create Tank'}</CardTitle>
             </CardHeader>
@@ -196,24 +217,30 @@ export default function TanksNozzles() {
               <div className="p-4 flex justify-between items-center bg-white border-b">
                 <div className="flex items-center gap-2">
                   <span className="text-sm text-gray-500">Show:</span>
-                  <select className="border rounded p-1 text-sm bg-white">
-                    <option>All</option>
+                  <select 
+                    className="border rounded p-1 text-sm bg-white"
+                    value={itemsPerPage}
+                    onChange={(e) => {
+                      const value = e.target.value === 'all' ? 'all' : Number(e.target.value);
+                      setItemsPerPage(value);
+                      setCurrentPage(1);
+                    }}
+                  >
+                    <option value="all">All</option>
+                    <option value="10">10</option>
+                    <option value="50">50</option>
+                    <option value="100">100</option>
+                    <option value="500">500</option>
                   </select>
                 </div>
-                <div className="flex items-center gap-4">
-                  <div className="flex gap-1">
-                    <Button variant="outline" size="sm" className="text-green-600 border-green-200 bg-green-50">CSV</Button>
-                    <Button variant="outline" size="sm" className="text-red-600 border-red-200 bg-red-50">PDF</Button>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <span className="text-sm text-gray-500">Filter:</span>
-                    <Input
-                      placeholder="Type to filter..."
-                      className="h-8 w-48"
-                      value={searchTerm}
-                      onChange={(e) => setSearchTerm(e.target.value)}
-                    />
-                  </div>
+                <div className="flex items-center gap-2">
+                  <span className="text-sm text-gray-500">Filter:</span>
+                  <Input
+                    placeholder="Type to filter..."
+                    className="h-8 w-48"
+                    value={searchTerm}
+                    onChange={(e) => setSearchTerm(e.target.value)}
+                  />
                 </div>
               </div>
 
@@ -232,16 +259,16 @@ export default function TanksNozzles() {
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {filteredTanks.length === 0 ? (
+                    {paginatedTanks.length === 0 ? (
                       <TableRow>
                         <TableCell colSpan={8} className="text-center py-8 text-gray-500">
                           No tanks found. Add your first tank above.
                         </TableCell>
                       </TableRow>
                     ) : (
-                      filteredTanks.map((tank, idx) => (
+                      paginatedTanks.map((tank, idx) => (
                         <TableRow key={tank.id} data-testid={`row-tank-${tank.id}`} className="hover:bg-gray-50">
-                          <TableCell>{idx + 1}</TableCell>
+                          <TableCell>{startIndex + idx + 1}</TableCell>
                           <TableCell data-testid={`text-tank-name-${tank.id}`} className="font-medium">
                             {tank.tank_name || tank.tank_number} <span className="text-xs text-gray-400 ml-1">Id: {tank.id?.slice(-2).toUpperCase()}</span>
                           </TableCell>
@@ -289,9 +316,27 @@ export default function TanksNozzles() {
                             </div>
                           </TableCell>
                           <TableCell className="text-center">
-                            <span className="bg-[#10b981] text-white text-xs px-2 py-1 rounded font-bold">
-                              ACTIVATED
-                            </span>
+                            <div className="flex items-center justify-center gap-3">
+                              <button
+                                onClick={() => handleStatusToggle(tank.id, tank.status || 'Active')}
+                                className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
+                                  (tank.status || 'Active') === 'Active' ? 'bg-blue-600' : 'bg-gray-300'
+                                }`}
+                              >
+                                <span
+                                  className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
+                                    (tank.status || 'Active') === 'Active' ? 'translate-x-6' : 'translate-x-1'
+                                  }`}
+                                />
+                              </button>
+                              <span className={`text-xs px-3 py-1 rounded font-bold ${
+                                (tank.status || 'Active') === 'Active' 
+                                  ? 'bg-green-100 text-green-700' 
+                                  : 'bg-gray-100 text-gray-600'
+                              }`}>
+                                {(tank.status || 'Active') === 'Active' ? 'ACTIVE' : 'INACTIVE'}
+                              </span>
+                            </div>
                           </TableCell>
                           <TableCell className="text-xs text-gray-500">
                             Created: Super Admin {new Date().toLocaleDateString('en-GB')}
@@ -304,17 +349,42 @@ export default function TanksNozzles() {
               </div>
 
               <div className="p-4 border-t text-sm text-gray-500 flex justify-between items-center">
-                <span>Showing 1 to {filteredTanks.length} of {filteredTanks.length} entries</span>
+                <span>
+                  Showing {paginatedTanks.length === 0 ? 0 : startIndex + 1} to {Math.min(endIndex, totalItems)} of {totalItems} entries
+                  {searchTerm && ` (filtered from ${tanks.length} total entries)`}
+                </span>
                 <div className="flex gap-1">
-                  <Button variant="outline" size="sm" disabled>&larr;</Button>
-                  <Button variant="outline" size="sm" className="bg-gray-100">1</Button>
-                  <Button variant="outline" size="sm" disabled>&rarr;</Button>
+                  <Button 
+                    variant="outline" 
+                    size="sm" 
+                    disabled={currentPage === 1 || itemsPerPage === 'all'}
+                    onClick={() => setCurrentPage(currentPage - 1)}
+                  >
+                    &larr;
+                  </Button>
+                  {Array.from({ length: totalPages }, (_, i) => i + 1).map(page => (
+                    <Button
+                      key={page}
+                      variant="outline"
+                      size="sm"
+                      className={currentPage === page ? "bg-blue-100" : ""}
+                      onClick={() => setCurrentPage(page)}
+                    >
+                      {page}
+                    </Button>
+                  ))}
+                  <Button 
+                    variant="outline" 
+                    size="sm" 
+                    disabled={currentPage === totalPages || itemsPerPage === 'all'}
+                    onClick={() => setCurrentPage(currentPage + 1)}
+                  >
+                    &rarr;
+                  </Button>
                 </div>
               </div>
             </CardContent>
           </Card>
-        </TabsContent>
-      </Tabs>
 
       <AlertDialog open={deleteConfirm !== null} onOpenChange={() => setDeleteConfirm(null)}>
         <AlertDialogContent>

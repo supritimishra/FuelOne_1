@@ -19,7 +19,7 @@ const AUTH_URL = `http://localhost:${process.env.PORT || 5001}/api/auth/login`;
 async function runTests() {
     console.log('🚀 Starting Reports Verification...');
 
-    let token = '';
+    const token = '';
     // Use the existing TestSprite bypass found in server/auth.ts
     const headers: any = {
         'x-test-user': 'TestSprite',
@@ -87,3 +87,4 @@ async function runTests() {
 }
 
 runTests();
+

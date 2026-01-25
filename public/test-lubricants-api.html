@@ -1,0 +1,162 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Test Lubricants API</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 1200px;
+            margin: 50px auto;
+            padding: 20px;
+        }
+        button {
+            background: #4CAF50;
+            color: white;
+            padding: 10px 20px;
+            border: none;
+            cursor: pointer;
+            margin: 5px;
+        }
+        button:hover {
+            background: #45a049;
+        }
+        #result {
+            margin-top: 20px;
+            padding: 15px;
+            background: #f5f5f5;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            white-space: pre-wrap;
+            font-family: monospace;
+        }
+        .error {
+            background: #ffebee;
+            border-color: #f44336;
+            color: #c62828;
+        }
+        .success {
+            background: #e8f5e9;
+            border-color: #4CAF50;
+            color: #2e7d32;
+        }
+    </style>
+</head>
+<body>
+    <h1>Lubricants API Test</h1>
+    
+    <div>
+        <h2>Step 1: Login First</h2>
+        <input type="email" id="email" placeholder="Email" value="admin@example.com">
+        <input type="password" id="password" placeholder="Password" value="admin123">
+        <button onclick="login()">Login</button>
+    </div>
+    
+    <div>
+        <h2>Step 2: Test API Endpoints</h2>
+        <button onclick="testGetLubricants()">GET /api/lubricants</button>
+        <button onclick="testCreateLubricant()">POST /api/lubricants</button>
+    </div>
+    
+    <div id="result"></div>
+    
+    <script>
+        let authToken = '';
+        const resultDiv = document.getElementById('result');
+        
+        async function login() {
+            const email = document.getElementById('email').value;
+            const password = document.getElementById('password').value;
+            
+            resultDiv.textContent = 'Logging in...';
+            resultDiv.className = '';
+            
+            try {
+                const response = await fetch('/api/auth/login', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    credentials: 'include',
+                    body: JSON.stringify({ email, password })
+                });
+                
+                const data = await response.json();
+                
+                if (data.ok) {
+                    resultDiv.textContent = '✅ Login successful!\n\n' + JSON.stringify(data, null, 2);
+                    resultDiv.className = 'success';
+                } else {
+                    resultDiv.textContent = '❌ Login failed:\n\n' + JSON.stringify(data, null, 2);
+                    resultDiv.className = 'error';
+                }
+            } catch (error) {
+                resultDiv.textContent = '❌ Error: ' + error.message;
+                resultDiv.className = 'error';
+            }
+        }
+        
+        async function testGetLubricants() {
+            resultDiv.textContent = 'Fetching lubricants...';
+            resultDiv.className = '';
+            
+            try {
+                const response = await fetch('/api/lubricants', {
+                    method: 'GET',
+                    credentials: 'include'
+                });
+                
+                const data = await response.json();
+                
+                if (data.ok) {
+                    resultDiv.textContent = `✅ Success! Found ${data.rows?.length || 0} lubricants\n\n` + JSON.stringify(data, null, 2);
+                    resultDiv.className = 'success';
+                } else {
+                    resultDiv.textContent = '❌ Failed:\n\n' + JSON.stringify(data, null, 2);
+                    resultDiv.className = 'error';
+                }
+            } catch (error) {
+                resultDiv.textContent = '❌ Error: ' + error.message;
+                resultDiv.className = 'error';
+            }
+        }
+        
+        async function testCreateLubricant() {
+            resultDiv.textContent = 'Creating test lubricant...';
+            resultDiv.className = '';
+            
+            const testData = {
+                lubricant_name: 'Test Oil ' + Date.now(),
+                hsn_code: '27101990',
+                gst_percentage: 18,
+                mrp_rate: 500,
+                sale_rate: 450,
+                minimum_stock: 10,
+                current_stock: 50,
+                is_active: true
+            };
+            
+            try {
+                const response = await fetch('/api/lubricants', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    credentials: 'include',
+                    body: JSON.stringify(testData)
+                });
+                
+                const data = await response.json();
+                
+                if (data.ok) {
+                    resultDiv.textContent = '✅ Lubricant created successfully!\n\n' + JSON.stringify(data, null, 2);
+                    resultDiv.className = 'success';
+                } else {
+                    resultDiv.textContent = '❌ Failed to create:\n\n' + JSON.stringify(data, null, 2);
+                    resultDiv.className = 'error';
+                }
+            } catch (error) {
+                resultDiv.textContent = '❌ Error: ' + error.message;
+                resultDiv.className = 'error';
+            }
+        }
+    </script>
+</body>
+</html>

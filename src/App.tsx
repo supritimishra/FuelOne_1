@@ -57,6 +57,7 @@ import Vendors from "./pages/admin/Vendors";
 import TanksNozzles from "./pages/admin/TanksNozzles";
 import AddNozzle from "./pages/admin/AddNozzle";
 import PumpSetting from "./pages/admin/PumpSetting";
+import Pumps from "./pages/admin/Pumps";
 import Employees from "./pages/admin/Employees";
 import SwipeMachines from "./pages/SwipeMachines";
 import Denominations from "./pages/Denominations";
@@ -266,6 +267,7 @@ const App = () => (
               <Route path="/master/expiry-items" element={buildFeatureRoute("expiry_items", <ExpiryItems />)} />
               <Route path="/master/tank-nozzel" element={buildFeatureRoute("tank_nozzle", <TanksNozzles />)} />
               <Route path="/master/tank/add-nozzle/:tankId" element={buildFeatureRoute("tank_nozzle", <AddNozzle />)} />
+              <Route path="/master/pumps" element={buildFeatureRoute("pump_settings", <Pumps />)} />
               <Route path="/master/pump-setting" element={buildFeatureRoute("pump_settings", <PumpSetting />)} />
               <Route path="/master/dutypay-shift" element={buildFeatureRoute("duty_pay_shift", <ShiftManagement />)} />
               <Route path="/master/print-templates" element={buildFeatureRoute("print_templates", <PrintTemplates />)} />

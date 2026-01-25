@@ -104,7 +104,7 @@ dailyRatesRouter.post("/daily-sale-rates", async (req: Request, res: Response) =
                 const rateDate = rate.rateDate ? new Date(rate.rateDate) : new Date();
 
                 // Check existing
-                let existing = await DailySaleRate.findOne({
+                const existing = await DailySaleRate.findOne({
                     rateDate: rateDate,
                     fuelProductId: rate.fuelProductId
                 });
@@ -185,3 +185,4 @@ dailyRatesRouter.delete("/daily-sale-rates/:id", async (req: Request, res: Respo
         res.status(500).json({ success: false, error: error.message });
     }
 });
+

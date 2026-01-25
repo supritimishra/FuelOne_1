@@ -87,14 +87,14 @@ export default function ShiftEntry() {
   const updateNozzleReading = (index: number, field: keyof NozzleReading, value: string | number) => {
     const updated = [...nozzleReadings];
     updated[index] = { ...updated[index], [field]: value };
-    
+
     // Calculate quantity if both readings are provided
     if (field === "opening_reading" || field === "closing_reading") {
       const opening = parseFloat(updated[index].opening_reading) || 0;
       const closing = parseFloat(updated[index].closing_reading) || 0;
       updated[index].quantity = Math.max(0, closing - opening);
     }
-    
+
     setNozzleReadings(updated);
   };
 
@@ -146,7 +146,7 @@ export default function ShiftEntry() {
       });
 
       const result = await response.json();
-      
+
       if (!result.ok) {
         const errorInfo = handleAPIError(result.error, "Shift Entry");
         toast({
@@ -194,7 +194,7 @@ export default function ShiftEntry() {
                 onChange={(e) => setShiftDate(e.target.value)}
               />
             </div>
-            
+
             <div className="space-y-2">
               <Label htmlFor="shift">Shift</Label>
               <Select value={shiftId} onValueChange={setShiftId}>
