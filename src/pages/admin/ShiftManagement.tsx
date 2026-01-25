@@ -33,6 +33,7 @@ export default function ShiftManagement() {
   const [editingShift, setEditingShift] = useState<any | null>(null);
   const [deleteId, setDeleteId] = useState<string | null>(null);
   const [searchTerm, setSearchTerm] = useState("");
+  const [pageSize, setPageSize] = useState<number | 'All'>('All');
 
   const { data: shifts = [], isLoading } = useQuery<any[]>({
     queryKey: ["/api/duty-shifts"],
@@ -140,6 +141,30 @@ export default function ShiftManagement() {
     },
   });
 
+  const toggleStatusMutation = useMutation({
+    mutationFn: async ({ id, isActive }: { id: string; isActive: boolean }) => {
+      const response = await fetch(`/api/duty-shifts/${id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({ is_active: isActive }),
+      });
+      const result = await response.json();
+      if (!result.ok) throw new Error(result.error || 'Failed to update status');
+      return result;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/duty-shifts"] });
+      toast({ title: "Status updated successfully" });
+    },
+    onError: () => {
+      toast({
+        title: "Failed to update status",
+        variant: "destructive"
+      });
+    },
+  });
+
   const handleEdit = (shift: any) => {
     setEditingShift(shift);
     form.reset({
@@ -162,6 +187,9 @@ export default function ShiftManagement() {
   const filteredShifts = shifts.filter((shift) =>
     shift.shift_name.toLowerCase().includes(searchTerm.toLowerCase())
   );
+
+  // Calculate displayed shifts based on pageSize
+  const displayedShifts = pageSize === 'All' ? filteredShifts : filteredShifts.slice(0, pageSize as number);
 
   return (
     <div className="space-y-6">
@@ -243,15 +271,19 @@ export default function ShiftManagement() {
           <div className="p-4 flex justify-between items-center bg-white border-b">
             <div className="flex items-center gap-2">
               <span className="text-sm text-gray-500">Show:</span>
-              <select className="border rounded p-1 text-sm bg-white">
-                <option>All</option>
+              <select 
+                className="border rounded p-1 text-sm bg-white"
+                value={pageSize}
+                onChange={(e) => setPageSize(e.target.value === 'All' ? 'All' : Number(e.target.value))}
+              >
+                <option value="All">All</option>
+                <option value="10">10</option>
+                <option value="50">50</option>
+                <option value="100">100</option>
+                <option value="500">500</option>
               </select>
             </div>
             <div className="flex items-center gap-4">
-              <div className="flex gap-1">
-                <Button variant="outline" size="sm" className="text-green-600 border-green-200 bg-green-50">CSV</Button>
-                <Button variant="outline" size="sm" className="text-red-600 border-red-200 bg-red-50">PDF</Button>
-              </div>
               <div className="flex items-center gap-2">
                 <span className="text-sm text-gray-500">Filter:</span>
                 <Input
@@ -279,14 +311,14 @@ export default function ShiftManagement() {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {filteredShifts.length === 0 ? (
+                {displayedShifts.length === 0 ? (
                   <TableRow>
                     <TableCell colSpan={8} className="text-center py-8 text-gray-500">
                       No data available in table
                     </TableCell>
                   </TableRow>
                 ) : (
-                  filteredShifts.map((shift, idx) => (
+                  displayedShifts.map((shift, idx) => (
                     <TableRow key={shift.id} data-testid={`row-shift-${shift.id}`} className="hover:bg-gray-50">
                       <TableCell>{idx + 1}</TableCell>
                       <TableCell data-testid={`text-shift-name-${shift.id}`} className="font-medium">{shift.shift_name}</TableCell>
@@ -316,9 +348,34 @@ export default function ShiftManagement() {
                         </div>
                       </TableCell>
                       <TableCell className="text-center">
-                        <span className="bg-[#10b981] text-white text-xs px-2 py-1 rounded font-bold">
-                          ACTIVATED
-                        </span>
+                        <div className="flex flex-col items-center gap-2">
+                          <button
+                            onClick={() => toggleStatusMutation.mutate({ id: shift.id, isActive: !shift.is_active })}
+                            className={`relative inline-flex h-8 w-16 items-center rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-offset-2 ${
+                              shift.is_active
+                                ? 'bg-blue-600 focus:ring-blue-500' 
+                                : 'bg-gray-300 focus:ring-gray-400'
+                            }`}
+                            role="switch"
+                            aria-checked={shift.is_active}
+                            disabled={toggleStatusMutation.isPending}
+                          >
+                            <span
+                              className={`inline-block h-6 w-6 transform rounded-full bg-white shadow-lg transition-transform ${
+                                shift.is_active ? 'translate-x-9' : 'translate-x-1'
+                              }`}
+                            />
+                          </button>
+                          <span 
+                            className={`text-xs font-semibold px-2 py-1 rounded ${
+                              shift.is_active
+                                ? 'bg-green-100 text-green-800' 
+                                : 'bg-gray-100 text-gray-600'
+                            }`}
+                          >
+                            {shift.is_active ? 'ACTIVE' : 'INACTIVE'}
+                          </span>
+                        </div>
                       </TableCell>
                       <TableCell className="text-xs text-gray-500">
                         Created: Super Admin {new Date().toLocaleDateString('en-GB')}
@@ -331,7 +388,7 @@ export default function ShiftManagement() {
           </div>
 
           <div className="p-4 border-t text-sm text-gray-500 flex justify-between items-center">
-            <span>Showing 1 to {filteredShifts.length} of {filteredShifts.length} entries</span>
+            <span>Showing 1 to {displayedShifts.length} of {filteredShifts.length} entries</span>
             <div className="flex gap-1">
               <Button variant="outline" size="sm" disabled>&larr;</Button>
               <Button variant="outline" size="sm" className="bg-gray-100">1</Button>

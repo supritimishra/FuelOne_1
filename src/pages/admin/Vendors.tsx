@@ -36,6 +36,8 @@ export default function Vendors() {
   const [deleteConfirm, setDeleteConfirm] = useState<string | null>(null);
   const [searchTerm, setSearchTerm] = useState("");
   const [isLoading, setIsLoading] = useState(true);
+  const [itemsPerPage, setItemsPerPage] = useState<number | 'all'>('all');
+  const [currentPage, setCurrentPage] = useState(1);
 
   const form = useForm<VendorFormData>({
     resolver: zodResolver(vendorSchema),
@@ -167,19 +169,18 @@ export default function Vendors() {
     setDeleteConfirm(null);
   };
 
-  const handleToggleStatus = async (item: any) => {
+  const handleToggleStatus = async (vendorId: string, currentStatus: boolean) => {
     try {
-      const newStatus = item.is_active === false; // Toggle status
-      const response = await fetch(`/api/vendors/${item.id}`, {
+      const response = await fetch(`/api/vendors/${vendorId}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         credentials: 'include',
-        body: JSON.stringify({ ...item, is_active: newStatus })
+        body: JSON.stringify({ is_active: !currentStatus })
       });
       const result = await response.json();
 
       if (result.ok) {
-        toast({ title: "Success", description: `Vendor ${newStatus ? 'activated' : 'disabled'}` });
+        toast({ title: "Success", description: `Vendor ${!currentStatus ? 'activated' : 'deactivated'} successfully` });
         fetchVendors();
       } else {
         toast({ variant: "destructive", title: "Error", description: result.error || "Failed to update status" });
@@ -190,9 +191,15 @@ export default function Vendors() {
   };
 
   const filteredVendors = vendors.filter((item) =>
-    item.vendor_name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    item.vendor_type.toLowerCase().includes(searchTerm.toLowerCase())
+    (item.vendor_name || "").toLowerCase().includes(searchTerm.toLowerCase()) ||
+    (item.vendor_type || "").toLowerCase().includes(searchTerm.toLowerCase())
   );
+
+  const totalItems = filteredVendors.length;
+  const totalPages = itemsPerPage === 'all' ? 1 : Math.ceil(totalItems / itemsPerPage);
+  const startIndex = itemsPerPage === 'all' ? 0 : (currentPage - 1) * itemsPerPage;
+  const endIndex = itemsPerPage === 'all' ? totalItems : startIndex + itemsPerPage;
+  const paginatedVendors = itemsPerPage === 'all' ? filteredVendors : filteredVendors.slice(startIndex, endIndex);
 
   return (
     <div className="space-y-6">
@@ -340,15 +347,23 @@ export default function Vendors() {
           <div className="p-4 flex justify-between items-center bg-white border-b">
             <div className="flex items-center gap-2">
               <span className="text-sm text-gray-500">Show:</span>
-              <select className="border rounded p-1 text-sm bg-white">
-                <option>All</option>
+              <select 
+                className="border rounded p-1 text-sm bg-white"
+                value={itemsPerPage}
+                onChange={(e) => {
+                  const value = e.target.value === 'all' ? 'all' : Number(e.target.value);
+                  setItemsPerPage(value);
+                  setCurrentPage(1);
+                }}
+              >
+                <option value="all">All</option>
+                <option value="10">10</option>
+                <option value="50">50</option>
+                <option value="100">100</option>
+                <option value="500">500</option>
               </select>
             </div>
             <div className="flex items-center gap-4">
-              <div className="flex gap-1">
-                <Button variant="outline" size="sm" className="text-green-600 border-green-200 bg-green-50">CSV</Button>
-                <Button variant="outline" size="sm" className="text-red-600 border-red-200 bg-red-50">PDF</Button>
-              </div>
               <div className="flex items-center gap-2">
                 <span className="text-sm text-gray-500">Filter:</span>
                 <Input
@@ -379,23 +394,23 @@ export default function Vendors() {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {filteredVendors.length === 0 ? (
+                {paginatedVendors.length === 0 ? (
                   <TableRow>
                     <TableCell colSpan={11} className="text-center py-8 text-gray-500">
                       No vendors found. Add your first vendor above.
                     </TableCell>
                   </TableRow>
                 ) : (
-                  filteredVendors.map((item, index) => (
+                  paginatedVendors.map((item, index) => (
                     <TableRow key={item.id} className="hover:bg-gray-50">
-                      <TableCell>{index + 1}</TableCell>
+                      <TableCell>{startIndex + index + 1}</TableCell>
                       <TableCell className="font-medium">{item.vendor_name}</TableCell>
-                      <TableCell>{item.phone_number || "-"}</TableCell>
-                      <TableCell>{item.gst_tin || "-"}</TableCell>
+                      <TableCell>{item.phone_number || "N/A"}</TableCell>
+                      <TableCell>{item.gst_tin || "N/A"}</TableCell>
                       <TableCell>{item.vendor_type}</TableCell>
                       <TableCell>₹{item.opening_balance || 0}</TableCell>
                       <TableCell>{item.email || "N/A"}</TableCell>
-                      <TableCell>{item.address || "-"}</TableCell>
+                      <TableCell>{item.address || "N/A"}</TableCell>
                       <TableCell className="text-center">
                         <div className="flex justify-center gap-2">
                           <Button
@@ -417,18 +432,31 @@ export default function Vendors() {
                         </div>
                       </TableCell>
                       <TableCell className="text-center">
-                        <div className="flex items-center justify-center gap-2">
-                          <Switch
-                            checked={item.is_active !== false}
-                            onCheckedChange={() => handleToggleStatus(item)}
-                          />
-                          <span
-                            className={`text-xs px-2 py-1 rounded font-bold ${item.is_active !== false
-                                ? "bg-green-100 text-green-700"
-                                : "bg-gray-100 text-gray-600"
-                              }`}
+                        <div className="flex flex-col items-center gap-2">
+                          <button
+                            onClick={() => handleToggleStatus(item.id, item.is_active ?? true)}
+                            className={`relative inline-flex h-8 w-16 items-center rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-offset-2 ${
+                              (item.is_active ?? true)
+                                ? 'bg-blue-600 focus:ring-blue-500' 
+                                : 'bg-gray-300 focus:ring-gray-400'
+                            }`}
+                            role="switch"
+                            aria-checked={item.is_active ?? true}
                           >
-                            {item.is_active !== false ? "ACTIVE" : "INACTIVE"}
+                            <span
+                              className={`inline-block h-6 w-6 transform rounded-full bg-white shadow-lg transition-transform ${
+                                (item.is_active ?? true) ? 'translate-x-9' : 'translate-x-1'
+                              }`}
+                            />
+                          </button>
+                          <span 
+                            className={`text-xs font-semibold px-2 py-1 rounded ${
+                              (item.is_active ?? true)
+                                ? 'bg-green-100 text-green-800' 
+                                : 'bg-gray-100 text-gray-600'
+                            }`}
+                          >
+                            {(item.is_active ?? true) ? 'ACTIVE' : 'INACTIVE'}
                           </span>
                         </div>
                       </TableCell>
@@ -443,11 +471,38 @@ export default function Vendors() {
           </div>
 
           <div className="p-4 border-t text-sm text-gray-500 flex justify-between items-center">
-            <span>Showing 1 to {filteredVendors.length} of {filteredVendors.length} entries</span>
+            <span>
+              Showing {paginatedVendors.length === 0 ? 0 : startIndex + 1} to {Math.min(endIndex, totalItems)} of {totalItems} entries
+              {searchTerm && ` (filtered from ${vendors.length} total entries)`}
+            </span>
             <div className="flex gap-1">
-              <Button variant="outline" size="sm" disabled>&larr;</Button>
-              <Button variant="outline" size="sm" className="bg-gray-100">1</Button>
-              <Button variant="outline" size="sm" disabled>&rarr;</Button>
+              <Button 
+                variant="outline" 
+                size="sm" 
+                disabled={currentPage === 1 || itemsPerPage === 'all'}
+                onClick={() => setCurrentPage(currentPage - 1)}
+              >
+                &larr;
+              </Button>
+              {Array.from({ length: totalPages }, (_, i) => i + 1).map(page => (
+                <Button
+                  key={page}
+                  variant="outline"
+                  size="sm"
+                  className={currentPage === page ? "bg-blue-100" : ""}
+                  onClick={() => setCurrentPage(page)}
+                >
+                  {page}
+                </Button>
+              ))}
+              <Button 
+                variant="outline" 
+                size="sm" 
+                disabled={currentPage === totalPages || itemsPerPage === 'all'}
+                onClick={() => setCurrentPage(currentPage + 1)}
+              >
+                &rarr;
+              </Button>
             </div>
           </div>
         </CardContent>

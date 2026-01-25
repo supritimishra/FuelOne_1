@@ -35,7 +35,7 @@ import {
     InterestTransaction, SheetRecord, TankerSale, GuestSale,
     Attendance, DutyPayRecord, SalesOfficerInspection, CreditRequest,
     ExpiryItem, Feedback, DayCashMovement, CreditCustomer, FuelProduct, Employee, ExpenseType,
-    Tank, Nozzle, LubricantProduct, TankDailyReading, SwipeTransaction, SwipeMachine
+    Tank, Nozzle, LubricantProduct, TankDailyReading, SwipeTransaction, SwipeMachine, User
 } from "../models.js";
 
 export const relationalRouter = Router();
@@ -634,6 +634,7 @@ relationalRouter.post("/guest-sales", async (req: Request, res: Response) => {
             mobileNumber,
             billNo,
             vehicleNumber,
+            vehicleNumbers,
             fuelProductId,
             pricePerUnit,
             amount, // Frontend sends 'amount' but model expects calculation or simply storing it
@@ -642,10 +643,18 @@ relationalRouter.post("/guest-sales", async (req: Request, res: Response) => {
             description,
             paymentMode,
             employeeId,
-            gstNumber
+            gstNumber,
+            offerType,
+            totalAmount
         } = req.body;
 
-        const calculatedTotal = amount ? Number(amount) : (Number(quantity) * Number(pricePerUnit)) - Number(discount || 0);
+        // Ensure we have a valid number for totalAmount
+        const discountValue = Number(discount) || 0;
+        const calculatedTotal = totalAmount 
+            ? (isNaN(Number(totalAmount)) ? discountValue : Number(totalAmount))
+            : amount 
+            ? Number(amount) 
+            : (Number(quantity || 0) * Number(pricePerUnit || 0)) - discountValue;
 
         const newRecord = new GuestSale({
             saleDate,
@@ -654,15 +663,18 @@ relationalRouter.post("/guest-sales", async (req: Request, res: Response) => {
             mobileNumber,
             billNo,
             vehicleNumber,
+            vehicleNumbers,
             fuelProductId,
             pricePerUnit,
             quantity,
-            discount,
+            discount: discountValue,
             paymentMode,
             totalAmount: calculatedTotal,
             description,
             employeeId,
             gstNumber,
+            offerType,
+            status: 'active',
             createdBy: (req as any).user?.id
         });
 
@@ -697,15 +709,102 @@ relationalRouter.get("/guest-sales", async (req: Request, res: Response) => {
             products.forEach(p => productsMap[String(p._id)] = p.productName);
         }
 
+        // Get user details for createdBy
+        const userIds = Array.from(new Set(results.map(r => r.createdBy).filter(Boolean)));
+        let usersMap: Record<string, any> = {};
+        if (userIds.length > 0) {
+            const users = await User.find({ _id: { $in: userIds } } as any);
+            users.forEach(u => usersMap[String(u._id)] = { username: u.username, _id: u._id });
+        }
+
         const mappedResults = results.map(r => ({
             ...r.toObject(),
             id: r._id,
-            productName: r.fuelProductId ? productsMap[r.fuelProductId] : ''
+            productName: r.fuelProductId ? productsMap[r.fuelProductId] : '',
+            createdBy: r.createdBy ? usersMap[r.createdBy] : null
         }));
 
         res.json({ success: true, data: mappedResults, rows: mappedResults });
     } catch (error: any) {
         res.status(500).json({ success: false, error: error.message });
+    }
+});
+
+relationalRouter.put("/guest-sales/:id", async (req: Request, res: Response) => {
+    try {
+        const { id } = req.params;
+        const {
+            saleDate,
+            customerName,
+            mobileNumber,
+            discount,
+            offerType,
+            gstNumber,
+            vehicleNumbers,
+            totalAmount
+        } = req.body;
+
+        const updated = await GuestSale.findByIdAndUpdate(
+            id,
+            {
+                saleDate,
+                customerName,
+                mobileNumber,
+                discount,
+                offerType,
+                gstNumber,
+                vehicleNumbers,
+                totalAmount
+            },
+            { new: true }
+        );
+
+        if (!updated) {
+            return res.status(404).json({ success: false, error: "Guest sale not found" });
+        }
+
+        res.json({ success: true, data: updated });
+    } catch (error: any) {
+        console.error("Error updating guest sale:", error);
+        res.status(400).json({ success: false, error: error.message });
+    }
+});
+
+relationalRouter.delete("/guest-sales/:id", async (req: Request, res: Response) => {
+    try {
+        const { id } = req.params;
+        const deleted = await GuestSale.findByIdAndDelete(id);
+
+        if (!deleted) {
+            return res.status(404).json({ success: false, error: "Guest sale not found" });
+        }
+
+        res.json({ success: true, message: "Guest sale deleted successfully" });
+    } catch (error: any) {
+        console.error("Error deleting guest sale:", error);
+        res.status(400).json({ success: false, error: error.message });
+    }
+});
+
+relationalRouter.put("/guest-sales/:id/status", async (req: Request, res: Response) => {
+    try {
+        const { id } = req.params;
+        const { status } = req.body;
+
+        const updated = await GuestSale.findByIdAndUpdate(
+            id,
+            { status },
+            { new: true }
+        );
+
+        if (!updated) {
+            return res.status(404).json({ success: false, error: "Guest sale not found" });
+        }
+
+        res.json({ success: true, data: updated });
+    } catch (error: any) {
+        console.error("Error updating status:", error);
+        res.status(400).json({ success: false, error: error.message });
     }
 });
 

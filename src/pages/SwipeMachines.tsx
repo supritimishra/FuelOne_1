@@ -26,6 +26,8 @@ export default function SwipeMachines() {
   const [editingId, setEditingId] = useState<string | null>(null);
   const [deleteConfirm, setDeleteConfirm] = useState<string | null>(null);
   const [searchTerm, setSearchTerm] = useState("");
+  const [itemsPerPage, setItemsPerPage] = useState<number | 'all'>('all');
+  const [currentPage, setCurrentPage] = useState(1);
   const [vendors, setVendors] = useState<any[]>([]);
 
   const [formData, setFormData] = useState({
@@ -172,6 +174,12 @@ export default function SwipeMachines() {
     (item.machine_name || "").toLowerCase().includes(searchTerm.toLowerCase())
   );
 
+  const totalItems = filteredMachines.length;
+  const totalPages = itemsPerPage === 'all' ? 1 : Math.ceil(totalItems / itemsPerPage);
+  const startIndex = itemsPerPage === 'all' ? 0 : (currentPage - 1) * itemsPerPage;
+  const endIndex = itemsPerPage === 'all' ? totalItems : startIndex + itemsPerPage;
+  const paginatedMachines = itemsPerPage === 'all' ? filteredMachines : filteredMachines.slice(startIndex, endIndex);
+
   return (
     <div className="space-y-6">
       <Card className="border-t-4 border-t-blue-600 shadow-md">
@@ -272,19 +280,23 @@ export default function SwipeMachines() {
           <div className="p-4 flex justify-between items-center bg-white border-b">
             <div className="flex items-center gap-2">
               <span className="text-sm text-gray-500">Show:</span>
-              <select className="border rounded p-1 text-sm bg-white">
-                <option>All</option>
+              <select 
+                className="border rounded p-1 text-sm bg-white"
+                value={itemsPerPage}
+                onChange={(e) => {
+                  const value = e.target.value === 'all' ? 'all' : Number(e.target.value);
+                  setItemsPerPage(value);
+                  setCurrentPage(1);
+                }}
+              >
+                <option value="all">All</option>
+                <option value="10">10</option>
+                <option value="50">50</option>
+                <option value="100">100</option>
+                <option value="500">500</option>
               </select>
             </div>
             <div className="flex items-center gap-4">
-              <div className="flex gap-1">
-                <Button variant="outline" size="sm" className="text-green-600 border-green-200 bg-green-50">
-                  CSV
-                </Button>
-                <Button variant="outline" size="sm" className="text-red-600 border-red-200 bg-red-50">
-                  PDF
-                </Button>
-              </div>
               <div className="flex items-center gap-2">
                 <span className="text-sm text-gray-500">Filter:</span>
                 <Input
@@ -311,16 +323,16 @@ export default function SwipeMachines() {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {filteredMachines.length === 0 ? (
+                {paginatedMachines.length === 0 ? (
                   <TableRow>
                     <TableCell colSpan={7} className="text-center py-8 text-gray-500">
                       No machines found. Add your first machine above.
                     </TableCell>
                   </TableRow>
                 ) : (
-                  filteredMachines.map((item: any, index: number) => (
+                  paginatedMachines.map((item: any, index: number) => (
                     <TableRow key={item.id} className="hover:bg-gray-50">
-                      <TableCell>{index + 1}</TableCell>
+                      <TableCell>{startIndex + index + 1}</TableCell>
                       <TableCell className="font-medium">{item.machine_name}</TableCell>
                       <TableCell>
                         <div className="flex flex-col">
@@ -351,32 +363,36 @@ export default function SwipeMachines() {
                         </Button>
                       </TableCell>
                       <TableCell className="text-center">
-                        <div className="flex items-center justify-center gap-2">
-                          <div className="relative inline-block w-10 mr-2 align-middle select-none transition duration-200 ease-in">
-                            <input
-                              type="checkbox"
-                              name="toggle"
-                              id={`toggle-${item.id}`}
-                              checked={item.status === "Active"}
-                              onChange={() =>
-                                statusMutation.mutate({
-                                  machine: item,
-                                  status: item.status === "Active" ? "Inactive" : "Active",
-                                })
-                              }
-                              className="toggle-checkbox absolute block w-5 h-5 rounded-full bg-white border-4 appearance-none cursor-pointer"
+                        <div className="flex flex-col items-center gap-2">
+                          <button
+                            onClick={() =>
+                              statusMutation.mutate({
+                                machine: item,
+                                status: item.status === "Active" ? "Inactive" : "Active",
+                              })
+                            }
+                            className={`relative inline-flex h-8 w-16 items-center rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-offset-2 ${
+                              item.status === "Active"
+                                ? 'bg-blue-600 focus:ring-blue-500' 
+                                : 'bg-gray-300 focus:ring-gray-400'
+                            }`}
+                            role="switch"
+                            aria-checked={item.status === "Active"}
+                          >
+                            <span
+                              className={`inline-block h-6 w-6 transform rounded-full bg-white shadow-lg transition-transform ${
+                                item.status === "Active" ? 'translate-x-9' : 'translate-x-1'
+                              }`}
                             />
-                            <label
-                              htmlFor={`toggle-${item.id}`}
-                              className="toggle-label block overflow-hidden h-5 rounded-full bg-gray-300 cursor-pointer"
-                            ></label>
-                          </div>
-                          <span
-                            className={`text-xs px-2 py-1 rounded font-bold ${
-                              item.status === "Active" ? "bg-[#10b981] text-white" : "bg-gray-200 text-gray-600"
+                          </button>
+                          <span 
+                            className={`text-xs font-semibold px-2 py-1 rounded ${
+                              item.status === "Active"
+                                ? 'bg-green-100 text-green-800' 
+                                : 'bg-gray-100 text-gray-600'
                             }`}
                           >
-                            {item.status === "Active" ? "ACTIVATED" : "DISABLED"}
+                            {item.status === "Active" ? 'ACTIVE' : 'INACTIVE'}
                           </span>
                         </div>
                       </TableCell>
@@ -392,16 +408,35 @@ export default function SwipeMachines() {
 
           <div className="p-4 border-t text-sm text-gray-500 flex justify-between items-center">
             <span>
-              Showing 1 to {filteredMachines.length} of {filteredMachines.length} entries
+              Showing {paginatedMachines.length === 0 ? 0 : startIndex + 1} to {Math.min(endIndex, totalItems)} of {totalItems} entries
+              {searchTerm && ` (filtered from ${machines.length} total entries)`}
             </span>
             <div className="flex gap-1">
-              <Button variant="outline" size="sm" disabled>
+              <Button 
+                variant="outline" 
+                size="sm" 
+                disabled={currentPage === 1 || itemsPerPage === 'all'}
+                onClick={() => setCurrentPage(currentPage - 1)}
+              >
                 &larr;
               </Button>
-              <Button variant="outline" size="sm" className="bg-gray-100">
-                1
-              </Button>
-              <Button variant="outline" size="sm" disabled>
+              {Array.from({ length: totalPages }, (_, i) => i + 1).map(page => (
+                <Button
+                  key={page}
+                  variant="outline"
+                  size="sm"
+                  className={currentPage === page ? "bg-blue-100" : ""}
+                  onClick={() => setCurrentPage(page)}
+                >
+                  {page}
+                </Button>
+              ))}
+              <Button 
+                variant="outline" 
+                size="sm" 
+                disabled={currentPage === totalPages || itemsPerPage === 'all'}
+                onClick={() => setCurrentPage(currentPage + 1)}
+              >
                 &rarr;
               </Button>
             </div>

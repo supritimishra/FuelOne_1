@@ -115,6 +115,7 @@ export interface IGuestSale extends Document {
     mobileNumber?: string;
     billNo?: string;
     vehicleNumber?: string;
+    vehicleNumbers?: string[];
     fuelProductId?: string; // Reference to Postgres ID
     pricePerUnit?: number;
     amount?: number;
@@ -125,6 +126,8 @@ export interface IGuestSale extends Document {
     paymentMode?: string;
     employeeId?: string; // Reference to Postgres ID
     gstNumber?: string;
+    offerType?: string;
+    status?: string;
     createdBy?: string;
 }
 
@@ -135,6 +138,7 @@ const GuestSaleSchema = new Schema<IGuestSale>({
     mobileNumber: { type: String },
     billNo: { type: String },
     vehicleNumber: { type: String },
+    vehicleNumbers: [{ type: String }],
     fuelProductId: { type: String },
     pricePerUnit: { type: Number },
     amount: { type: Number },
@@ -145,6 +149,8 @@ const GuestSaleSchema = new Schema<IGuestSale>({
     paymentMode: { type: String },
     employeeId: { type: String },
     gstNumber: { type: String },
+    offerType: { type: String },
+    status: { type: String, default: 'active' },
     createdBy: { type: String },
 }, { timestamps: true });
 

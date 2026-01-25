@@ -1001,6 +1001,127 @@ masterDataRouter.delete('/swipe-machines/:id', async (req: AuthRequest, res: Res
 });
 
 // ========================================
+// PUMPS - Master Data
+// ========================================
+// Manages pump stations for fuel dispensing
+
+// GET all pumps - Retrieves list of all pump stations
+masterDataRouter.get('/pumps', async (req: AuthRequest, res: Response) => {
+  try {
+    const db = await getDatabase();
+    const collection = db.collection('pumps');
+    
+    // Fetch all pumps sorted by newest first
+    const pumps = await collection
+      .find({})
+      .sort({ created_at: -1 })
+      .toArray();
+    
+    // Transform _id to id for frontend compatibility
+    const transformedPumps = pumps.map(pump => ({
+      ...pump,
+      id: pump._id.toString(),
+    }));
+    
+    res.json({ ok: true, rows: transformedPumps });
+  } catch (error) {
+    console.error('Error fetching pumps:', error);
+    res.status(500).json({ ok: false, error: 'Failed to fetch pumps' });
+  }
+});
+
+// POST new pump - Creates a new pump station
+masterDataRouter.post('/pumps', async (req: AuthRequest, res: Response) => {
+  try {
+    const { pump, pump_name } = req.body;
+    
+    // Validate required fields
+    if (!pump || !pump_name) {
+      return res.status(400).json({ ok: false, error: 'Pump and Pump Name are required' });
+    }
+
+    const db = await getDatabase();
+    const collection = db.collection('pumps');
+    
+    const result = await collection.insertOne({
+      pump,
+      pump_name,
+      status: 'ACTIVE',
+      created_at: new Date(),
+      created_by: (req.user as any)?.full_name || (req.user as any)?.username || 'system',
+    });
+
+    res.json({ ok: true, id: result.insertedId });
+  } catch (error) {
+    console.error('Error creating pump:', error);
+    res.status(500).json({ ok: false, error: 'Failed to create pump' });
+  }
+});
+
+// PUT update pump - Modifies existing pump details or toggles status
+masterDataRouter.put('/pumps/:id', async (req: AuthRequest, res: Response) => {
+  try {
+    const { id } = req.params;
+    const { pump, pump_name, status } = req.body;
+
+    // Validate ObjectId format
+    if (!ObjectId.isValid(id)) {
+      return res.status(400).json({ ok: false, error: 'Invalid pump ID format' });
+    }
+
+    const db = await getDatabase();
+    const collection = db.collection('pumps');
+    
+    const updateData: any = { updated_at: new Date() };
+    
+    // Only update fields that are provided
+    if (pump !== undefined) updateData.pump = pump;
+    if (pump_name !== undefined) updateData.pump_name = pump_name;
+    if (status !== undefined) updateData.status = status;
+
+    const result = await collection.updateOne(
+      { _id: new ObjectId(id) },
+      { $set: updateData }
+    );
+
+    if (result.matchedCount === 0) {
+      return res.status(404).json({ ok: false, error: 'Pump not found' });
+    }
+
+    res.json({ ok: true });
+  } catch (error) {
+    console.error('Error updating pump:', error);
+    res.status(500).json({ ok: false, error: 'Failed to update pump' });
+  }
+});
+
+// DELETE pump - Removes a pump station
+masterDataRouter.delete('/pumps/:id', async (req: AuthRequest, res: Response) => {
+  try {
+    const { id } = req.params;
+    
+    if (!ObjectId.isValid(id)) {
+      return res.status(400).json({ ok: false, error: 'Invalid pump ID format' });
+    }
+
+    const db = await getDatabase();
+    const collection = db.collection('pumps');
+    
+    // Permanent delete from collection
+    const result = await collection.deleteOne({ _id: new ObjectId(id) });
+
+    if (result.deletedCount === 0) {
+      return res.status(404).json({ ok: false, error: 'Pump not found' });
+    }
+
+    res.json({ ok: true });
+  } catch (error) {
+    console.error('Error deleting pump:', error);
+    res.status(500).json({ ok: false, error: 'Failed to delete pump' });
+  }
+});
+
+// ========================================
 // TANKS - Master Data
 // ========================================
 // Manages fuel storage tanks with capacity tracking and stock levels
@@ -2447,11 +2568,11 @@ masterDataRouter.delete('/guest-entries/:id', async (req: AuthRequest, res: Resp
 masterDataRouter.get('/denominations', async (req: AuthRequest, res: Response) => {
   try {
     const db = await getDatabase();
-    const collection = db.collection('denominations');
+    const collection = db.collection('denomination');
     
     const denominations = await collection
       .find({})
-      .sort({ value: -1 }) // Sort by value descending
+      .sort({ denomination: -1 }) // Sort by denomination descending
       .toArray();
     
     // Transform _id to id for frontend compatibility
@@ -2469,24 +2590,24 @@ masterDataRouter.get('/denominations', async (req: AuthRequest, res: Response) =
 
 masterDataRouter.post('/denominations', async (req: AuthRequest, res: Response) => {
   try {
-    const { value } = req.body;
+    const { denomination } = req.body;
     
-    if (!value) {
+    if (!denomination) {
       return res.status(400).json({ ok: false, error: 'Denomination value is required' });
     }
 
     const db = await getDatabase();
-    const collection = db.collection('denominations');
+    const collection = db.collection('denomination');
     
     // Check if denomination already exists
-    const existing = await collection.findOne({ value: value.toString() });
+    const existing = await collection.findOne({ denomination: denomination.toString() });
     if (existing) {
       return res.status(400).json({ ok: false, error: 'Denomination already exists' });
     }
     
     const result = await collection.insertOne({
-      value: value.toString(),
-      status: 'ACTIVATED',
+      denomination: denomination.toString(),
+      status: 'active',
       created_at: new Date(),
       created_by: req.user?.email || 'Unknown',
       created_by_name: (req.user as any)?.name || 'Super Admin',
@@ -2503,14 +2624,14 @@ masterDataRouter.post('/denominations', async (req: AuthRequest, res: Response) 
 masterDataRouter.put('/denominations/:id', async (req: AuthRequest, res: Response) => {
   try {
     const { id } = req.params;
-    const { value, status } = req.body;
+    const { denomination, status } = req.body;
 
     if (!ObjectId.isValid(id)) {
       return res.status(400).json({ ok: false, error: 'Invalid ID format' });
     }
 
     const db = await getDatabase();
-    const collection = db.collection('denominations');
+    const collection = db.collection('denomination');
     
     const updateData: any = {
       updated_at: new Date(),
@@ -2518,8 +2639,8 @@ masterDataRouter.put('/denominations/:id', async (req: AuthRequest, res: Respons
       updated_by_name: (req.user as any)?.name || 'Super Admin',
     };
     
-    if (value !== undefined) {
-      updateData.value = value.toString();
+    if (denomination !== undefined) {
+      updateData.denomination = denomination.toString();
     }
     if (status !== undefined) {
       updateData.status = status;
@@ -2550,7 +2671,7 @@ masterDataRouter.delete('/denominations/:id', async (req: AuthRequest, res: Resp
     }
 
     const db = await getDatabase();
-    const collection = db.collection('denominations');
+    const collection = db.collection('denomination');
     
     const result = await collection.deleteOne({ _id: new ObjectId(id) });
 

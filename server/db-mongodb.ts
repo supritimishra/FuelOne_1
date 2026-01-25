@@ -32,7 +32,7 @@ export async function connectToDatabase(): Promise<Db> {
     await mongoClient.connect();
     console.log('✅ Connected to MongoDB');
     
-    mongoDb = mongoClient.db(process.env.DB_NAME || 'fuelmanagement');
+    mongoDb = mongoClient.db(process.env.DB_NAME || 'fuelone');
     
     // Create indexes for better performance
     await createIndexes(mongoDb);

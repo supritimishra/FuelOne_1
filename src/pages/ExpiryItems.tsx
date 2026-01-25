@@ -20,7 +20,17 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
-import { Plus, Search, Edit, Trash2, Calendar, Save } from "lucide-react";
+import { Plus, Search, Edit, Trash2, Calendar, Save, X } from "lucide-react";
+
+type ExpiryItemRow = {
+  tempId: string;
+  category: string;
+  item_name: string;
+  item_no: string;
+  expiry_date: string;
+  no_of_days: string;
+  note: string;
+};
 
 type ExpiryItem = {
   id: string;
@@ -49,18 +59,21 @@ export default function ExpiryItems() {
   const [activeTab, setActiveTab] = useState<'items' | 'category'>('items');
   const [editingItemId, setEditingItemId] = useState<string | null>(null);
   const [editingCategoryId, setEditingCategoryId] = useState<string | null>(null);
+  const [itemsPerPage, setItemsPerPage] = useState<number | 'all'>('all');
+  const [currentPage, setCurrentPage] = useState(1);
 
-  // Form states for both tabs
-  const [itemForm, setItemForm] = useState({
-    item_name: "",
-    issue_date: "",
-    expiry_date: "",
-    status: "Active",
-    category: "",
-    item_no: "",
-    no_of_days: "",
-    note: ""
-  });
+  // Multi-row form state
+  const [formRows, setFormRows] = useState<ExpiryItemRow[]>([
+    {
+      tempId: crypto.randomUUID(),
+      category: "",
+      item_name: "",
+      item_no: "",
+      expiry_date: "",
+      no_of_days: "",
+      note: ""
+    }
+  ]);
 
   const [categoryForm, setCategoryForm] = useState({
     category_name: "",
@@ -88,7 +101,11 @@ export default function ExpiryItems() {
       const result = await response.json();
 
       if (result.ok) {
-        setCategories(result.rows || []);
+        // Remove duplicate categories by category_name
+        const uniqueCategories = (result.rows || []).filter((cat: Category, index: number, self: Category[]) =>
+          index === self.findIndex((c) => c.category_name === cat.category_name)
+        );
+        setCategories(uniqueCategories);
       } else {
         console.error('Failed to fetch categories:', result.error);
       }
@@ -102,44 +119,91 @@ export default function ExpiryItems() {
     fetchCategories();
   }, [fetchExpiryItems, fetchCategories]);
 
+  const addNewRow = () => {
+    setFormRows([
+      ...formRows,
+      {
+        tempId: crypto.randomUUID(),
+        category: "",
+        item_name: "",
+        item_no: "",
+        expiry_date: "",
+        no_of_days: "",
+        note: ""
+      }
+    ]);
+  };
+
+  const removeRow = (tempId: string) => {
+    if (formRows.length > 1) {
+      setFormRows(formRows.filter(row => row.tempId !== tempId));
+    }
+  };
+
+  const updateRow = (tempId: string, field: keyof ExpiryItemRow, value: string) => {
+    setFormRows(formRows.map(row =>
+      row.tempId === tempId ? { ...row, [field]: value } : row
+    ));
+  };
+
   const handleItemSubmit = async () => {
     try {
-      const response = await fetch('/api/expiry-items', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(itemForm),
-      });
-
-      const result = await response.json();
-
-      if (result.ok) {
-        toast({
-          title: "Item Added",
-          description: "Expiry item added successfully",
-        });
-        setItemForm({
-          item_name: "",
-          issue_date: "",
-          expiry_date: "",
-          status: "Active",
-          category: "",
-          item_no: "",
-          no_of_days: "",
-          note: ""
-        });
-        fetchExpiryItems();
-      } else {
-        toast({
-          variant: "destructive",
-          title: "Error",
-          description: result.error || "Failed to save item",
-        });
+      // Validate all rows
+      for (const row of formRows) {
+        if (!row.category || !row.item_name || !row.expiry_date) {
+          toast({
+            variant: "destructive",
+            title: "Error",
+            description: "Please fill all required fields (Category, Item Name, Expiry Date)",
+          });
+          return;
+        }
       }
-    } catch (error) {
+
+      // Submit all rows
+      for (const row of formRows) {
+        const response = await fetch('/api/expiry-items', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            category: row.category,
+            item_name: row.item_name,
+            item_no: row.item_no,
+            expiry_date: row.expiry_date,
+            no_of_days: row.no_of_days,
+            note: row.note,
+            status: "Active"
+          }),
+        });
+
+        const result = await response.json();
+        if (!result.ok) {
+          throw new Error(result.error || "Failed to save item");
+        }
+      }
+
+      toast({
+        title: "Success",
+        description: `${formRows.length} item(s) added successfully`,
+      });
+      
+      // Reset form to single empty row
+      setFormRows([{
+        tempId: crypto.randomUUID(),
+        category: "",
+        item_name: "",
+        item_no: "",
+        expiry_date: "",
+        no_of_days: "",
+        note: ""
+      }]);
+      
+      fetchExpiryItems();
+    } catch (error: any) {
       toast({
         variant: "destructive",
         title: "Error",
-        description: "Failed to save item",
+        description: error.message || "Failed to save items",
       });
     }
   };
@@ -199,8 +263,17 @@ export default function ExpiryItems() {
 
   const handleEditItem = (item: ExpiryItem) => {
     setEditingItemId(item.id);
-    setItemForm({ item_name: item.item_name, issue_date: item.issue_date || "", expiry_date: item.expiry_date, category: item.category_name || "", item_no: "", no_of_days: "", note: "", status: item.status });
+    setFormRows([{
+      tempId: crypto.randomUUID(),
+      category: item.category_name || "",
+      item_name: item.item_name,
+      item_no: "",
+      expiry_date: item.expiry_date,
+      no_of_days: "",
+      note: ""
+    }]);
     setActiveTab('items');
+    window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
   // Category handlers
@@ -230,6 +303,12 @@ export default function ExpiryItems() {
     item.item_name.toLowerCase().includes(searchTerm.toLowerCase()) ||
     item.status.toLowerCase().includes(searchTerm.toLowerCase())
   );
+
+  const totalItems = filteredItems.length;
+  const totalPages = itemsPerPage === 'all' ? 1 : Math.ceil(totalItems / itemsPerPage);
+  const startIndex = itemsPerPage === 'all' ? 0 : (currentPage - 1) * itemsPerPage;
+  const endIndex = itemsPerPage === 'all' ? totalItems : startIndex + itemsPerPage;
+  const paginatedItems = itemsPerPage === 'all' ? filteredItems : filteredItems.slice(startIndex, endIndex);
 
   const formatDate = (dateString: string | null) => {
     if (!dateString) return "N/A";
@@ -269,79 +348,115 @@ export default function ExpiryItems() {
           </CardHeader>
           <CardContent className="p-6 bg-blue-50">
             <div className="space-y-4">
-              {/* Date Fields */}
-              <div className="flex gap-4">
-                <Button className="bg-orange-500 hover:bg-orange-600 text-white">
-                  Choose Date
-                </Button>
-                <Input
-                  className="bg-white text-black w-48"
-                  placeholder="Created Date"
-                  type="date"
-                  value={itemForm.issue_date}
-                  onChange={(e) => setItemForm({ ...itemForm, issue_date: e.target.value })}
-                />
-              </div>
+              {/* Multi-row form with labels */}
+              <div className="space-y-3">
+                {formRows.map((row, rowIndex) => (
+                  <div key={row.tempId} className="space-y-2">
+                    {rowIndex === 0 && (
+                      <div className="grid grid-cols-12 gap-3 text-sm font-semibold text-blue-900">
+                        <div className="col-span-2">Category *</div>
+                        <div className="col-span-2">Item Name *</div>
+                        <div className="col-span-2">Item No.</div>
+                        <div className="col-span-2">Expiry Date *</div>
+                        <div className="col-span-1">No of Days</div>
+                        <div className="col-span-2">Note</div>
+                        <div className="col-span-1">Action</div>
+                      </div>
+                    )}
+                    <div className="grid grid-cols-12 gap-3 items-center">
+                      <div className="col-span-2">
+                        <Select
+                          value={row.category}
+                          onValueChange={(v) => updateRow(row.tempId, 'category', v)}
+                        >
+                          <SelectTrigger className="bg-white text-black border-blue-200 h-10">
+                            <SelectValue placeholder="Choose Category" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {categories.map(cat => (
+                              <SelectItem key={cat.id} value={cat.category_name}>
+                                {cat.category_name}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      </div>
 
-              {/* Item Details */}
-              <div className="grid grid-cols-1 md:grid-cols-6 gap-4">
-                <Select value={itemForm.category} onValueChange={(v) => setItemForm({ ...itemForm, category: v })}>
-                  <SelectTrigger className="bg-white text-black">
-                    <SelectValue placeholder="Choose Category*" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {categories.map(cat => (
-                      <SelectItem key={cat.id} value={cat.category_name}>{cat.category_name}</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+                      <div className="col-span-2">
+                        <Input
+                          className="bg-white text-black border-blue-200 h-10"
+                          placeholder="Item Name"
+                          value={row.item_name}
+                          onChange={(e) => updateRow(row.tempId, 'item_name', e.target.value)}
+                        />
+                      </div>
 
-                <Input
-                  className="bg-white text-black"
-                  placeholder="Item Name*"
-                  value={itemForm.item_name}
-                  onChange={(e) => setItemForm({ ...itemForm, item_name: e.target.value })}
-                />
+                      <div className="col-span-2">
+                        <Input
+                          className="bg-white text-black border-blue-200 h-10"
+                          placeholder="Item No."
+                          value={row.item_no}
+                          onChange={(e) => updateRow(row.tempId, 'item_no', e.target.value)}
+                        />
+                      </div>
 
-                <Input
-                  className="bg-white text-black"
-                  placeholder="Item No.*"
-                  value={itemForm.item_no}
-                  onChange={(e) => setItemForm({ ...itemForm, item_no: e.target.value })}
-                />
+                      <div className="col-span-2">
+                        <Input
+                          className="bg-white text-black border-blue-200 h-10"
+                          type="date"
+                          value={row.expiry_date}
+                          onChange={(e) => updateRow(row.tempId, 'expiry_date', e.target.value)}
+                        />
+                      </div>
 
-                <Input
-                  className="bg-white text-black"
-                  placeholder="Expiry Date*"
-                  type="date"
-                  value={itemForm.expiry_date}
-                  onChange={(e) => setItemForm({ ...itemForm, expiry_date: e.target.value })}
-                />
+                      <div className="col-span-1">
+                        <Input
+                          className="bg-white text-black border-blue-200 h-10"
+                          placeholder="Days"
+                          type="number"
+                          value={row.no_of_days}
+                          onChange={(e) => updateRow(row.tempId, 'no_of_days', e.target.value)}
+                        />
+                      </div>
 
-                <Input
-                  className="bg-white text-black"
-                  placeholder="No of Days*"
-                  type="number"
-                  value={itemForm.no_of_days}
-                  onChange={(e) => setItemForm({ ...itemForm, no_of_days: e.target.value })}
-                />
+                      <div className="col-span-2">
+                        <Input
+                          className="bg-white text-black border-blue-200 h-10"
+                          placeholder="Note"
+                          value={row.note}
+                          onChange={(e) => updateRow(row.tempId, 'note', e.target.value)}
+                        />
+                      </div>
 
-                <div className="flex items-center gap-2">
-                  <Input
-                    className="bg-white text-black"
-                    placeholder="Note"
-                    value={itemForm.note}
-                    onChange={(e) => setItemForm({ ...itemForm, note: e.target.value })}
-                  />
-                  <Button type="button" variant="outline" className="bg-blue-500 text-white hover:bg-blue-600">
-                    <Plus className="h-4 w-4" />
-                  </Button>
-                </div>
+                      <div className="col-span-1 flex gap-1">
+                        {rowIndex === formRows.length - 1 && (
+                          <Button
+                            type="button"
+                            onClick={addNewRow}
+                            className="h-10 w-10 bg-blue-500 hover:bg-blue-600 text-white rounded-full p-0"
+                          >
+                            <Plus className="h-5 w-5" />
+                          </Button>
+                        )}
+                        {formRows.length > 1 && (
+                          <Button
+                            type="button"
+                            onClick={() => removeRow(row.tempId)}
+                            variant="outline"
+                            className="h-10 w-10 bg-red-500 hover:bg-red-600 text-white border-0 rounded-full p-0"
+                          >
+                            <X className="h-5 w-5" />
+                          </Button>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                ))}
               </div>
 
               {/* Save Button */}
-              <div className="flex justify-center mt-4">
-                <Button onClick={handleItemSubmit} className="rounded-full bg-orange-500 hover:bg-orange-600 text-white px-8">
+              <div className="flex justify-center mt-6">
+                <Button onClick={handleItemSubmit} className="rounded-full bg-[#84cc16] hover:bg-[#65a30d] text-white px-8 py-2 font-bold">
                   <Save className="h-4 w-4 mr-2" />
                   SAVE
                 </Button>
@@ -388,36 +503,32 @@ export default function ExpiryItems() {
           <div className="flex items-center justify-between mb-4">
             <div className="flex items-center gap-4">
               <div className="flex items-center gap-2">
-                <span>Show:</span>
-                <Select defaultValue="all">
-                  <SelectTrigger className="w-20">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="all">All</SelectItem>
-                    <SelectItem value="10">10</SelectItem>
-                    <SelectItem value="25">25</SelectItem>
-                    <SelectItem value="50">50</SelectItem>
-                  </SelectContent>
-                </Select>
+                <span className="text-sm text-gray-500">Show:</span>
+                <select 
+                  className="border rounded p-1 text-sm bg-white"
+                  value={itemsPerPage}
+                  onChange={(e) => {
+                    const value = e.target.value === 'all' ? 'all' : Number(e.target.value);
+                    setItemsPerPage(value);
+                    setCurrentPage(1);
+                  }}
+                >
+                  <option value="all">All</option>
+                  <option value="10">10</option>
+                  <option value="50">50</option>
+                  <option value="100">100</option>
+                  <option value="500">500</option>
+                </select>
               </div>
             </div>
             <div className="flex items-center gap-2">
-              <Button variant="outline" size="sm" className="text-green-600 border-green-200 bg-green-50">
-                CSV
-              </Button>
-              <Button variant="outline" size="sm" className="text-red-600 border-red-200 bg-red-50">
-                PDF
-              </Button>
-              <div className="flex items-center gap-2">
-                <span>Filter:</span>
-                <Input
-                  placeholder="Type to filter..."
-                  className="w-56"
-                  value={searchTerm}
-                  onChange={(e) => setSearchTerm(e.target.value)}
-                />
-              </div>
+              <span className="text-sm text-gray-500">Filter:</span>
+              <Input
+                placeholder="Type to filter..."
+                className="h-8 w-48"
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+              />
             </div>
           </div>
 
@@ -445,16 +556,16 @@ export default function ExpiryItems() {
               </TableHeader>
               <TableBody>
                 {activeTab === 'items' ? (
-                  filteredItems.length === 0 ? (
+                  paginatedItems.length === 0 ? (
                     <TableRow>
                       <TableCell colSpan={6} className="text-center py-4 text-gray-500">
                         No data available in table
                       </TableCell>
                     </TableRow>
                   ) : (
-                    filteredItems.map((item, idx) => (
+                    paginatedItems.map((item, idx) => (
                       <TableRow key={item.id} className="hover:bg-gray-50">
-                        <TableCell>{idx + 1}</TableCell>
+                        <TableCell>{startIndex + idx + 1}</TableCell>
                         <TableCell>{item.category_name || '-'}</TableCell>
                         <TableCell>{item.item_name}</TableCell>
                         <TableCell>{item.item_name}</TableCell>
@@ -508,19 +619,46 @@ export default function ExpiryItems() {
 
             <div className="flex items-center justify-between mt-4 p-4 border-t">
               <div className="text-sm text-gray-500">
-                Showing 1 to {activeTab === 'items' ? filteredItems.length : categories.length} of {activeTab === 'items' ? filteredItems.length : categories.length} entries
+                {activeTab === 'items' ? (
+                  <span>
+                    Showing {paginatedItems.length === 0 ? 0 : startIndex + 1} to {Math.min(endIndex, totalItems)} of {totalItems} entries
+                    {searchTerm && ` (filtered from ${expiryItems.length} total entries)`}
+                  </span>
+                ) : (
+                  <span>Showing 1 to {categories.length} of {categories.length} entries</span>
+                )}
               </div>
-              <div className="flex items-center gap-2">
-                <Button variant="outline" size="sm" disabled>
-                  ←
-                </Button>
-                <Button variant="outline" size="sm" className="bg-gray-100">
-                  1
-                </Button>
-                <Button variant="outline" size="sm" disabled>
-                  →
-                </Button>
-              </div>
+              {activeTab === 'items' && (
+                <div className="flex gap-1">
+                  <Button 
+                    variant="outline" 
+                    size="sm" 
+                    disabled={currentPage === 1 || itemsPerPage === 'all'}
+                    onClick={() => setCurrentPage(currentPage - 1)}
+                  >
+                    ←
+                  </Button>
+                  {Array.from({ length: totalPages }, (_, i) => i + 1).map(page => (
+                    <Button
+                      key={page}
+                      variant="outline"
+                      size="sm"
+                      className={currentPage === page ? "bg-blue-100" : ""}
+                      onClick={() => setCurrentPage(page)}
+                    >
+                      {page}
+                    </Button>
+                  ))}
+                  <Button 
+                    variant="outline" 
+                    size="sm" 
+                    disabled={currentPage === totalPages || itemsPerPage === 'all'}
+                    onClick={() => setCurrentPage(currentPage + 1)}
+                  >
+                    →
+                  </Button>
+                </div>
+              )}
             </div>
           </div>
         </CardContent>
