@@ -1112,7 +1112,7 @@ masterDataRouter.post('/tanks', async (req: AuthRequest, res: Response) => {
     const db = await getDatabase();
     const collection = db.collection('tanks');
     
-    const userName = req.user?.full_name || req.user?.email || 'Super Admin';
+    const userName = (req.user as any)?.full_name || req.user?.email || 'Super Admin';
     
     const result = await collection.insertOne({
       tankNumber,
@@ -1142,7 +1142,7 @@ masterDataRouter.put('/tanks/:id', async (req: AuthRequest, res: Response) => {
     const db = await getDatabase();
     const collection = db.collection('tanks');
     
-    const userName = req.user?.full_name || req.user?.email || 'Super Admin';
+    const userName = (req.user as any)?.full_name || req.user?.email || 'Super Admin';
     
     const updateData: any = {
       tankNumber,
@@ -1174,7 +1174,7 @@ masterDataRouter.patch('/tanks/:id/toggle-status', async (req: AuthRequest, res:
     const db = await getDatabase();
     const collection = db.collection('tanks');
     
-    const userName = req.user?.full_name || req.user?.email || 'Super Admin';
+    const userName = (req.user as any)?.full_name || req.user?.email || 'Super Admin';
     
     // Get current status
     const tank = await collection.findOne({ _id: new ObjectId(id) });
@@ -1281,7 +1281,7 @@ masterDataRouter.post('/nozzles-list', async (req: AuthRequest, res: Response) =
       fuelProductId: fuel_product_id ? new ObjectId(fuel_product_id) : undefined,
       pumpStation: pump_station || '',
       isActive: true,
-      createdBy: req.user?.username || 'Unknown',
+      createdBy: (req.user as any)?.username || 'Unknown',
       createdAt: new Date(),
       updatedAt: new Date(),
     });
@@ -1330,7 +1330,7 @@ masterDataRouter.post('/nozzles', async (req: AuthRequest, res: Response) => {
       fuelProductId: fuelProductId ? new ObjectId(fuelProductId) : undefined,
       pumpStation: pumpStation || '',
       isActive: true,
-      createdBy: req.user?.username || 'Unknown',
+      createdBy: (req.user as any)?.username || 'Unknown',
       createdAt: new Date(),
       updatedAt: new Date(),
     });
@@ -1352,7 +1352,7 @@ masterDataRouter.put('/nozzles/:id', async (req: AuthRequest, res: Response) => 
     
     const updateData: any = {
       updatedAt: new Date(),
-      updatedBy: req.user?.username || 'Unknown',
+      updatedBy: (req.user as any)?.username || 'Unknown',
     };
     
     // Update isActive status if provided
@@ -1429,7 +1429,7 @@ masterDataRouter.put('/nozzles-list/:id', async (req: AuthRequest, res: Response
     
     const updateData: any = {
       updatedAt: new Date(),
-      updatedBy: req.user?.username || 'Unknown',
+      updatedBy: (req.user as any)?.username || 'Unknown',
     };
     
     if (nozzle_number) {
@@ -1998,7 +1998,7 @@ masterDataRouter.post('/pump-stations', async (req: AuthRequest, res: Response) 
       isActive: true,
       createdAt: new Date(),
       updatedAt: new Date(),
-      createdBy: req.user?.username || 'Unknown',
+      createdBy: (req.user as any)?.username || 'Unknown',
     });
 
     res.json({ ok: true, id: result.insertedId.toString(), pump: pumpNumber });
@@ -2018,7 +2018,7 @@ masterDataRouter.put('/pump-stations/:id', async (req: AuthRequest, res: Respons
     
     const updateData: any = {
       updatedAt: new Date(),
-      updatedBy: req.user?.username || 'Unknown',
+      updatedBy: (req.user as any)?.username || 'Unknown',
     };
     
     if (pump_name !== undefined) updateData.pumpName = pump_name;
@@ -2119,7 +2119,7 @@ masterDataRouter.post('/duty-pay', async (req: AuthRequest, res: Response) => {
       total_employees: Number(total_employees) || 0,
       notes: notes || '',
       created_at: new Date(),
-      created_by: req.user?.username || 'Unknown',
+      created_by: (req.user as any)?.username || 'Unknown',
     });
 
     res.json({ ok: true, id: result.insertedId });
@@ -2139,7 +2139,7 @@ masterDataRouter.put('/duty-pay/:id', async (req: AuthRequest, res: Response) =>
     
     const updateData: any = {
       updated_at: new Date(),
-      updated_by: req.user?.username || 'Unknown',
+      updated_by: (req.user as any)?.username || 'Unknown',
     };
 
     if (pay_month !== undefined) updateData.pay_month = pay_month;
@@ -2351,7 +2351,7 @@ masterDataRouter.post('/guest-entries', async (req: AuthRequest, res: Response) 
       status: status || 'ACTIVATED',
       created_at: new Date(),
       created_by: req.user?.email || 'Unknown',
-      created_by_name: req.user?.name || 'Super Admin',
+      created_by_name: (req.user as any)?.name || 'Super Admin',
       updated_at: new Date(),
     });
 
@@ -2478,7 +2478,7 @@ masterDataRouter.post('/denominations', async (req: AuthRequest, res: Response) 
       status: 'ACTIVATED',
       created_at: new Date(),
       created_by: req.user?.email || 'Unknown',
-      created_by_name: req.user?.name || 'Super Admin',
+      created_by_name: (req.user as any)?.name || 'Super Admin',
       updated_at: new Date(),
     });
 
@@ -2504,7 +2504,7 @@ masterDataRouter.put('/denominations/:id', async (req: AuthRequest, res: Respons
     const updateData: any = {
       updated_at: new Date(),
       updated_by: req.user?.email || 'Unknown',
-      updated_by_name: req.user?.name || 'Super Admin',
+      updated_by_name: (req.user as any)?.name || 'Super Admin',
     };
     
     if (value !== undefined) {
