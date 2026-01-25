@@ -257,6 +257,14 @@ app.use((req, res, next) => {
       app.use("/api/features", (await import("./routes/feature-access")).featureAccessRouter);
     } catch (e) { console.error("Failed to load feature-access router", e); }
 
+    // MongoDB Master Data Routes (with authentication and tenant middleware)
+    try {
+      const { masterDataRouter } = await import("./routes/master-data-mongodb.js");
+      app.use("/api", masterDataRouter);
+      console.log("✅ MongoDB Master Data Routes loaded successfully");
+    } catch (e) {
+      console.error("❌ Failed to load MongoDB Master Data Routes:", e);
+    }
 
     // API routes with authentication and tenant middleware
     try {
