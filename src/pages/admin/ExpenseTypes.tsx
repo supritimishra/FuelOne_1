@@ -27,7 +27,6 @@ const ExpenseTypes = () => {
   const [deleteConfirm, setDeleteConfirm] = useState<string | null>(null);
   const [searchTerm, setSearchTerm] = useState("");
   const [isLoading, setIsLoading] = useState(true);
-  const [showCount, setShowCount] = useState(10);
   const { toast } = useToast();
 
   const form = useForm<ExpenseTypeFormData>({
@@ -159,35 +158,9 @@ const ExpenseTypes = () => {
     setDeleteConfirm(null);
   };
 
-  const toggleStatus = async (id: string, currentStatus: boolean) => {
-    try {
-      const response = await fetch(`/api/expense-types/${id}`, {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        credentials: 'include',
-        body: JSON.stringify({ is_active: !currentStatus })
-      });
-      const result = await response.json();
-
-      if (result.ok) {
-        toast({ 
-          title: "Success", 
-          description: `Expense type ${!currentStatus ? 'activated' : 'deactivated'} successfully` 
-        });
-        fetchExpenseTypes();
-      } else {
-        toast({ title: "Error", description: result.error || "Failed to update status", variant: "destructive" });
-      }
-    } catch (error) {
-      toast({ title: "Error", description: "Failed to update status", variant: "destructive" });
-    }
-  };
-
-  const filteredTypes = expenseTypes
-    .filter((item) =>
-      item.expense_type_name.toLowerCase().includes(searchTerm.toLowerCase())
-    )
-    .slice(0, showCount);
+  const filteredTypes = expenseTypes.filter((item) =>
+    item.expense_type_name.toLowerCase().includes(searchTerm.toLowerCase())
+  );
 
   return (
     <div className="space-y-6">
@@ -269,23 +242,16 @@ const ExpenseTypes = () => {
         <CardContent className="p-0">
           <div className="p-4 flex justify-between items-center bg-white border-b">
             <div className="flex items-center gap-2">
-              <Label className="text-sm font-semibold">Show:</Label>
-              <Select value={String(showCount)} onValueChange={(v) => setShowCount(Number(v))}>
-                <SelectTrigger className="w-24 h-8">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="10">10</SelectItem>
-                  <SelectItem value="50">50</SelectItem>
-                  <SelectItem value="100">100</SelectItem>
-                  <SelectItem value="500">500</SelectItem>
-                  <SelectItem value="1000">1000</SelectItem>
-                  <SelectItem value="999999">All</SelectItem>
-                </SelectContent>
-              </Select>
-              <span className="text-sm text-gray-600">entries</span>
+              <span className="text-sm text-gray-500">Show:</span>
+              <select className="border rounded p-1 text-sm bg-white" aria-label="Rows per page">
+                <option>All</option>
+              </select>
             </div>
             <div className="flex items-center gap-4">
+              <div className="flex gap-1">
+                <Button variant="outline" size="sm" className="text-green-600 border-green-200 bg-green-50">CSV</Button>
+                <Button variant="outline" size="sm" className="text-red-600 border-red-200 bg-red-50">PDF</Button>
+              </div>
               <div className="flex items-center gap-2">
                 <span className="text-sm text-gray-500">Filter:</span>
                 <Input
@@ -345,33 +311,9 @@ const ExpenseTypes = () => {
                         </div>
                       </TableCell>
                       <TableCell className="text-center">
-                        <div className="flex flex-col items-center gap-2">
-                          <button
-                            onClick={() => toggleStatus(item.id, item.is_active ?? true)}
-                            className={`relative inline-flex h-8 w-16 items-center rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-offset-2 ${
-                              (item.is_active ?? true)
-                                ? 'bg-blue-600 focus:ring-blue-500' 
-                                : 'bg-gray-300 focus:ring-gray-400'
-                            }`}
-                            role="switch"
-                            aria-checked={item.is_active ?? true}
-                          >
-                            <span
-                              className={`inline-block h-6 w-6 transform rounded-full bg-white shadow-lg transition-transform ${
-                                (item.is_active ?? true) ? 'translate-x-9' : 'translate-x-1'
-                              }`}
-                            />
-                          </button>
-                          <span 
-                            className={`text-xs font-semibold px-2 py-1 rounded ${
-                              (item.is_active ?? true)
-                                ? 'bg-green-100 text-green-800' 
-                                : 'bg-gray-100 text-gray-600'
-                            }`}
-                          >
-                            {(item.is_active ?? true) ? 'ACTIVE' : 'INACTIVE'}
-                          </span>
-                        </div>
+                        <span className={`text-xs px-2 py-1 rounded font-bold ${item.is_active ? 'bg-[#10b981] text-white' : 'bg-gray-200 text-gray-600'}`}>
+                          {item.is_active ? 'ACTIVATED' : 'DISABLED'}
+                        </span>
                       </TableCell>
                       <TableCell className="font-medium">{item.expense_type_name}</TableCell>
                       <TableCell>{item.effect_for}</TableCell>
