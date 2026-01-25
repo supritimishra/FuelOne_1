@@ -1432,7 +1432,7 @@ relationalRouter.post("/feedback", async (req: Request, res: Response) => {
 relationalRouter.get("/expenses", async (req: Request, res: Response) => {
     try {
         const { from_date, to_date, payment_mode } = req.query;
-        let conditions = [];
+        const conditions = [];
         if (from_date) conditions.push(gte(expenses.expenseDate, String(from_date)));
         if (to_date) conditions.push(lte(expenses.expenseDate, String(to_date)));
         if (payment_mode) conditions.push(eq(expenses.paymentMode, String(payment_mode)));
@@ -1450,7 +1450,7 @@ relationalRouter.get("/expenses", async (req: Request, res: Response) => {
 relationalRouter.get("/recoveries", async (req: Request, res: Response) => {
     try {
         const { from_date, to_date, payment_mode } = req.query;
-        let conditions = [];
+        const conditions = [];
         if (from_date) conditions.push(gte(recoveries.recoveryDate, String(from_date)));
         if (to_date) conditions.push(lte(recoveries.recoveryDate, String(to_date)));
         if (payment_mode) conditions.push(eq(recoveries.paymentMode, String(payment_mode)));
@@ -1468,7 +1468,7 @@ relationalRouter.get("/recoveries", async (req: Request, res: Response) => {
 relationalRouter.get("/sale-entries", async (req: Request, res: Response) => {
     try {
         const { from_date, to_date, shift_id } = req.query;
-        let conditions = [];
+        const conditions = [];
         if (from_date) conditions.push(gte(saleEntries.saleDate, String(from_date)));
         if (to_date) conditions.push(lte(saleEntries.saleDate, String(to_date)));
         if (shift_id) conditions.push(eq(saleEntries.shiftId, String(shift_id)));
@@ -1486,7 +1486,7 @@ relationalRouter.get("/sale-entries", async (req: Request, res: Response) => {
 relationalRouter.get("/credit-sales", async (req: Request, res: Response) => {
     try {
         const { from_date, to_date } = req.query;
-        let conditions = [];
+        const conditions = [];
         if (from_date) conditions.push(gte(creditSales.saleDate, String(from_date)));
         if (to_date) conditions.push(lte(creditSales.saleDate, String(to_date)));
 
@@ -1510,7 +1510,7 @@ relationalRouter.get("/credit-sales", async (req: Request, res: Response) => {
 relationalRouter.get("/lubricant-sales", async (req: Request, res: Response) => {
     try {
         const { from_date, to_date, product, employee } = req.query;
-        let conditions = [];
+        const conditions = [];
         if (from_date) conditions.push(gte(lubSales.saleDate, String(from_date)));
         if (to_date) conditions.push(lte(lubSales.saleDate, String(to_date)));
 
@@ -1560,7 +1560,7 @@ relationalRouter.delete("/lubricant-sales/:id", async (req: Request, res: Respon
 relationalRouter.get("/denominations", async (req: Request, res: Response) => {
     try {
         const { from_date, to_date } = req.query;
-        let conditions = [];
+        const conditions = [];
         if (from_date) conditions.push(gte(denominations.denominationDate, String(from_date)));
         if (to_date) conditions.push(lte(denominations.denominationDate, String(to_date)));
 
@@ -1663,7 +1663,7 @@ relationalRouter.get("/swipe-machines", async (req: Request, res: Response) => {
 relationalRouter.get("/employee-cash-recovery", async (req: Request, res: Response) => {
     try {
         const { from_date, to_date } = req.query;
-        let conditions = [];
+        const conditions = [];
         if (from_date) conditions.push(gte(employeeCashRecovery.recoveryDate, String(from_date)));
         if (to_date) conditions.push(lte(employeeCashRecovery.recoveryDate, String(to_date)));
 
@@ -1680,7 +1680,7 @@ relationalRouter.get("/employee-cash-recovery", async (req: Request, res: Respon
 relationalRouter.get("/day-settlements", async (req: Request, res: Response) => {
     try {
         const { from_date, to_date } = req.query;
-        let conditions = [];
+        const conditions = [];
         if (from_date) conditions.push(gte(daySettlements.settlementDate, String(from_date)));
         if (to_date) conditions.push(lte(daySettlements.settlementDate, String(to_date)));
 
@@ -1929,4 +1929,5 @@ relationalRouter.delete("/employees/:id", async (req: Request, res: Response) =>
         res.status(500).json({ success: false, error: error.message });
     }
 });
+
 
