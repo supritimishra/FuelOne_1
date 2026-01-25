@@ -670,7 +670,7 @@ masterDataRouter.put('/employees/:id', async (req: AuthRequest, res: Response) =
     const objectId = new ObjectId(id);
     console.log('Created ObjectId:', objectId);
     
-    let employee = await collection.findOne({ _id: objectId });
+    const employee = await collection.findOne({ _id: objectId });
     console.log('Found employee:', employee ? 'Yes' : 'No');
     
     if (!employee) {
