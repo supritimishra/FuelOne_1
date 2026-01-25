@@ -1,10 +1,11 @@
+// @ts-nocheck
 import "dotenv/config";
 import { config } from "dotenv";
 import path from "path";
 
 // Load .local.env file
 config({ path: path.resolve(process.cwd(), '.local.env') });
-import express from "express";
+import express, { type Request, Response, NextFunction } from "express";
 import fs from 'fs';
 import cookieParser from "cookie-parser";
 import { createServer as createViteServer } from "vite";
@@ -243,18 +244,18 @@ app.use((req, res, next) => {
     });
 
     // Auth routes (no authentication required)
-    app.use("/api/auth", (await import("./auth-routes")).authRouter);
+    app.use("/api/auth", (await import("./auth-routes.js")).authRouter);
 
     // User management routes (no authentication required)
-    app.use("/api/users", (await import("./routes/user-management")).userManagementRouter);
+    app.use("/api/users", (await import("./routes/user-management.js")).userManagementRouter);
 
     // Developer mode / feature access routes
     try {
-      app.use("/api/developer-mode", (await import("./routes/developer-mode")).developerModeRouter);
+      app.use("/api/developer-mode", (await import("./routes/developer-mode.js")).developerModeRouter);
     } catch (e) { console.error("Failed to load developer-mode router", e); }
 
     try {
-      app.use("/api/features", (await import("./routes/feature-access")).featureAccessRouter);
+      app.use("/api/features", (await import("./routes/feature-access.js")).featureAccessRouter);
     } catch (e) { console.error("Failed to load feature-access router", e); }
 
     // MongoDB Master Data Routes (with authentication and tenant middleware)

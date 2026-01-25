@@ -1,12 +1,15 @@
+
 import { Router } from "express";
 import mongoose from "mongoose";
-import { CreditCustomer } from "../models/CreditCustomer.js";
-import { BusinessTransaction } from "../models/BusinessTransaction.js";
-import { Vendor, VendorTransaction } from "../models/VendorTransaction.js";
-import { Employee } from "../models/Employee.js";
-import { FuelProduct } from "../models/FuelProduct.js";
-import { DailySaleRate } from "../models/DailySaleRate.js";
-import { Recovery } from "../models/Recovery.js";
+import {
+    CreditCustomer,
+    Employee,
+    FuelProduct,
+    DailySaleRate
+} from "../models";
+import { BusinessTransaction } from "../models/BusinessTransaction";
+import { Vendor, VendorTransaction } from "../models/VendorTransaction";
+import { Recovery } from "../models/Recovery";
 
 export const reportsRouter = Router();
 
@@ -64,7 +67,7 @@ reportsRouter.get("/attendance", async (req, res) => {
         const emps = await Employee.find(query);
         const rows = emps.map(e => ({
             attendance_date: new Date().toISOString().split('T')[0],
-            employee_name: e.fullName || e.employeeName,
+            employee_name: e.employeeName,
             status: "Active",
             shift_name: "General"
         }));
@@ -291,7 +294,7 @@ reportsRouter.get("/daily-business-summary", async (req, res) => {
 // Actually, I don't see a specific 'if (selected === "Discounts Offered")' block in my read of Reports.tsx.
 // It might fall through to the specific handler if I add one, or generic.
 // Let's add a placeholder route commonly used or if I implement generic handler.
-// Since I can't implement the generic `POST /run` easily without specific logic, I will assume 
+// Since I can't implement the generic `POST / run` easily without specific logic, I will assume 
 // the user might add a hook or I should add a specific endpoint if they requested it.
 // The user asked to build backend for report section.
 // Structure:
@@ -398,7 +401,7 @@ reportsRouter.get("/product-purchases", async (req, res) => {
         if (vType) {
             const vendors = await Vendor.find({
                 tenantId,
-                vendorType: { $regex: new RegExp(`^${vType}$`, 'i') }
+                vendorType: { $regex: new RegExp(`^ ${vType} $`, 'i') }
             }).select('_id');
             query.vendorId = { $in: vendors.map(v => v._id) };
         }
@@ -473,7 +476,7 @@ reportsRouter.get("/vendor-transactions", async (req, res) => {
         if (vType && vType !== 'All') {
             const vendors = await Vendor.find({
                 tenantId,
-                vendorType: { $regex: new RegExp(`^${vType}$`, 'i') }
+                vendorType: { $regex: new RegExp(`^ ${vType} $`, 'i') }
             }).select('_id');
             vendorIdsOfThisType = vendors.map(v => v._id.toString());
         }

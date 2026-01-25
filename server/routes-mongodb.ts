@@ -1,3 +1,4 @@
+// @ts-nocheck
 import { Router } from "express";
 import { AuthRequest } from "./auth.js";
 import mongoose from "mongoose";

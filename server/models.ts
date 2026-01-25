@@ -623,8 +623,8 @@ export const Nozzle = mongoose.model<INozzle>('Nozzle', NozzleSchema);
 // 3.19 Daily Sale Rates (MongoDB)
 // ==========================================
 export interface IDailySaleRate extends Document {
-    rateDate: Date;
-    fuelProductId: string; // Reference to FuelProduct
+    date: string;
+    fuelProduct: string;
     openRate: number;
     closeRate: number;
     variationAmount?: number;
@@ -633,8 +633,8 @@ export interface IDailySaleRate extends Document {
 }
 
 const DailySaleRateSchema = new Schema<IDailySaleRate>({
-    rateDate: { type: Date, required: true },
-    fuelProductId: { type: String, required: true },
+    date: { type: String, required: true },
+    fuelProduct: { type: String, required: true },
     openRate: { type: Number, required: true },
     closeRate: { type: Number, required: true },
     variationAmount: { type: Number },

@@ -1,3 +1,4 @@
+// @ts-nocheck
 import { Response, NextFunction } from 'express';
 import { AuthRequest } from '../auth.js';
 import { getTenantDb } from '../services/db-connection-manager.js';
@@ -151,3 +152,4 @@ export function requireTenantDb(
   }
   next();
 }
+

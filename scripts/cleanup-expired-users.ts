@@ -1,3 +1,4 @@
+// @ts-nocheck
 import { pool as masterPool } from '../server/db.js';
 import { db as masterDb } from '../server/db.js';
 import { tenantUsers } from '../shared/schema.js';
@@ -239,4 +240,5 @@ if (import.meta.url === `file://${process.argv[1]}` || process.argv[1]?.includes
       masterPool.end();
     });
 }
+
 

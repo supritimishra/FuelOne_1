@@ -28,4 +28,3 @@ if (mongoose.models.CreditCustomer) {
 }
 
 export const CreditCustomer = mongoose.model('CreditCustomer', creditCustomerSchema);
-console.log('✅ CreditCustomer model initialized with collection:', creditCustomerSchema.get('collection'));

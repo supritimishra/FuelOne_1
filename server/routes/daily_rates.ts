@@ -4,7 +4,7 @@ import { db } from "../db.js";
 import {
     dailySaleRates, insertDailySaleRateSchema, fuelProducts, users
 } from "../../shared/schema.js";
-import { DailySaleRate, FuelProduct } from "../models.js";
+import { DailySaleRate, FuelProduct } from "../models";
 import { eq, desc, and, gte, lte } from "drizzle-orm";
 
 export const dailyRatesRouter = Router();
@@ -22,29 +22,29 @@ dailyRatesRouter.get("/daily-sale-rates", async (req: Request, res: Response) =>
         // MongoDB Path
         if (!process.env.DATABASE_URL) {
             let conditions: any = {};
-            if (date) conditions.rateDate = new Date(String(date));
+            if (date) conditions.date = String(date);
             else if (from && to) {
-                conditions.rateDate = {
-                    $gte: new Date(String(from)),
-                    $lte: new Date(String(to))
+                conditions.date = {
+                    $gte: String(from),
+                    $lte: String(to)
                 };
             }
 
-            const results = await DailySaleRate.find(conditions).sort({ rateDate: -1 });
+            const results = await DailySaleRate.find(conditions).sort({ date: -1 });
 
             // Fetch Fuel Products to map names
-            const productIds = Array.from(new Set(results.map(r => r.fuelProductId).filter(Boolean)));
+            const productIds = Array.from(new Set(results.map(r => r.fuelProduct).filter(Boolean)));
             const products = await FuelProduct.find({ _id: { $in: productIds } });
             const productMap = products.reduce((acc, p) => ({ ...acc, [String(p._id)]: p.productName }), {} as Record<string, string>);
 
             const mapped = results.map(r => ({
                 id: r._id,
-                rate_date: r.rateDate.toISOString().slice(0, 10),
+                rate_date: r.date,
                 open_rate: r.openRate,
                 close_rate: r.closeRate,
                 variation_amount: r.variationAmount,
-                fuel_product_id: r.fuelProductId,
-                product_name: productMap[r.fuelProductId] || 'Unknown',
+                fuel_product_id: r.fuelProduct,
+                product_name: productMap[r.fuelProduct] || 'Unknown',
                 created_at: r.createdAt
             }));
 
@@ -101,12 +101,12 @@ dailyRatesRouter.post("/daily-sale-rates", async (req: Request, res: Response) =
             const results = [];
             for (const rate of rates) {
                 // Manually extract and validate lightly, bypassing strict UUID check
-                const rateDate = rate.rateDate ? new Date(rate.rateDate) : new Date();
+                const rateDate = rate.rateDate ? String(rate.rateDate).slice(0, 10) : new Date().toISOString().slice(0, 10);
 
                 // Check existing
                 const existing = await DailySaleRate.findOne({
-                    rateDate: rateDate,
-                    fuelProductId: rate.fuelProductId
+                    date: rateDate,
+                    fuelProduct: rate.fuelProductId
                 });
 
                 if (existing) {
@@ -118,8 +118,8 @@ dailyRatesRouter.post("/daily-sale-rates", async (req: Request, res: Response) =
                     results.push({ ...saved.toObject(), id: saved._id });
                 } else {
                     const newRate = new DailySaleRate({
-                        rateDate: rateDate,
-                        fuelProductId: rate.fuelProductId,
+                        date: rateDate,
+                        fuelProduct: rate.fuelProductId,
                         openRate: rate.openRate,
                         closeRate: rate.closeRate,
                         variationAmount: rate.variationAmount,

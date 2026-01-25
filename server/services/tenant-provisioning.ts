@@ -1,6 +1,5 @@
 import { randomBytes } from 'crypto';
-import { Tenant } from '../models/Tenant.js';
-import { User } from '../models/User.js';
+import { Tenant, User } from '../models';
 
 export interface TenantProvisioningResult {
   success: boolean;
@@ -145,7 +144,7 @@ export async function getTenantByUserEmail(email: string) {
 /**
  * Gets tenant by ID
  */
-export async function getTenantById(tenantId: string) {
+export async function getTenantById(tenantId: string): Promise<any> {
   try {
     const tenant = await Tenant.findById(tenantId);
     // Return object compatible with expected interface (add id field mapping)
@@ -172,4 +171,12 @@ export async function listActiveTenants() {
     console.error('Failed to list active tenants:', error);
     return [];
   }
+}
+
+/**
+ * Run tenant migrations (No-op for MongoDB)
+ */
+export async function runTenantMigrations(connectionString?: string): Promise<boolean> {
+  // MongoDB doesn't require traditional schema migrations in the same way
+  return true;
 }
