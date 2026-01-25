@@ -91,8 +91,19 @@ masterDataRouter.put('/fuel-products/:id', async (req: AuthRequest, res: Respons
     const { id } = req.params;
     const { product_name, short_name, gst_percentage, tds_percentage, wgt_percentage, lfrn, isActive } = req.body;
 
+    // Validate ObjectId format
+    if (!ObjectId.isValid(id)) {
+      return res.status(400).json({ ok: false, error: 'Invalid product ID format' });
+    }
+
     const db = await getDatabase();
     const collection = db.collection('fuel_products');
+    
+    // Check if product exists
+    const existingProduct = await collection.findOne({ _id: new ObjectId(id) });
+    if (!existingProduct) {
+      return res.status(404).json({ ok: false, error: 'Product not found' });
+    }
     
     const updateData: any = {
       updated_at: new Date(),
